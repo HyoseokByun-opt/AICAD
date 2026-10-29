@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ app }} · {{ full }}</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ version }}">
+<link rel="stylesheet" href="/static/app.css?v={{ version }}">
+<script type="importmap">{"imports": {"three": "/static/vendor/three/three.module.min.js"}}</script>
+</head>
+<body>
+<div class="ws" id="ws">
+  <!-- ================================================================ title bar -->
+  <header class="titlebar">
+    <div class="brand" id="brand"></div>
+    <div class="tb-case">
+      <label for="projName">Project</label>
+      <input id="projName" spellcheck="false" autocomplete="off" placeholder="No project open">
+      <button class="ibtn" id="btnProjects" title="Open a project"></button>
+    </div>
+    <div class="grow"></div>
+    <span class="chip" id="aiChip" title="AI engine"></span>
+    <button class="tbtn primary" id="btnGenerate" title="Read the drawing and/or the description and build the 3D model"></button>
+    <button class="tbtn danger" id="btnStop" disabled></button>
+  </header>
+
+  <!-- ================================================================ ribbon -->
+  <nav class="ribbon">
+    <div class="rtabs" id="rtabs">
+      <button data-tab="home" class="on">Home</button>
+      <button data-tab="drawing">Drawing</button>
+      <button data-tab="model">Model</button>
+      <button data-tab="ai">AI</button>
+      <button data-tab="export">Export</button>
+      <button data-tab="settings">Settings</button>
+    </div>
+    <div class="rbar" id="rbar"></div>
+  </nav>
+
+  <!-- ================================================================ body -->
+  <div class="body">
+    <aside class="lpanel">
+      <div class="phead" id="lhead"></div>
+      <div class="pscroll" id="lbody"></div>
+    </aside>
+
+    <main class="center">
+      <div class="ctabs" id="ctabs">
+        <button data-c="model" class="on"></button>
+        <button data-c="drawing"></button>
+        <button data-c="compare"></button>
+        <button data-c="code"></button>
+        <button data-c="values"></button>
+        <div class="grow"></div>
+        <span class="ctitle" id="cTitle"></span>
+      </div>
+
+      <!-- 3D model -->
+      <section class="cpage on" id="c-model">
+        <div class="vtoolbar">
+          <div class="seg" id="vStyle">
+            <button data-s="shaded-edges" class="on" title="Shaded with edges">Shaded + edges</button>
+            <button data-s="shaded" title="Shaded">Shaded</button>
+            <button data-s="wire" title="Edges only">Wireframe</button>
+            <button data-s="xray" title="See-through">X-ray</button>
+          </div>
+          <div class="vsep"></div>
+          <div class="seg" id="vSection">
+            <button data-a="" class="on" title="No section">No section</button>
+            <button data-a="x" title="Section normal to X">X</button>
+            <button data-a="y" title="Section normal to Y">Y</button>
+            <button data-a="z" title="Section normal to Z">Z</button>
+          </div>
+          <input type="range" id="vSecPos" min="0" max="1000" value="500" title="Section position" disabled>
+          <button class="ibtn" id="vSecFlip" title="Flip the section side">⇄</button>
+          <div class="vright">
+            <button class="ibtn" data-cam="iso" title="Isometric view">ISO</button>
+            <button class="ibtn" data-cam="front" title="Front view (looking along +Y)">Front</button>
+            <button class="ibtn" data-cam="top" title="Top view">Top</button>
+            <button class="ibtn" data-cam="right" title="Right view">Right</button>
+            <button class="ibtn" data-cam="left" title="Left view">Left</button>
+            <button class="ibtn" data-cam="rear" title="Rear view">Rear</button>
+            <button class="ibtn" data-cam="bottom" title="Bottom view">Bottom</button>
+            <button class="ibtn" id="vFit" title="Fit the model in the view"></button>
+            <div class="vsep"></div>
+            <button class="ibtn tog" id="vOrtho" title="Orthographic / perspective projection">Ortho</button>
+            <button class="ibtn tog" id="vDims" title="Show the overall dimensions">Dims</button>
+            <button class="ibtn tog" id="vMeasure" title="Measure the distance between two picked points"></button>
+            <button class="ibtn" id="vShot" title="Save a screen capture (PNG)"></button>
+          </div>
+        </div>
+        <div class="vstage" id="vStage">
+          <div class="vempty" id="vEmpty"></div>
+          <div class="vhud" id="vHud"></div>
+          <div class="vpick" id="vPick" hidden></div>
+        </div>
+      </section>
+
+      <!-- drawing -->
+      <section class="cpage" id="c-drawing">
+        <div class="vtoolbar">
+          <div class="seg" id="dPages"></div>
+          <div class="vsep"></div>
+          <button class="ibtn tog" id="dShowViews" title="Show the view boxes read by the AI">Views</button>
+          <button class="ibtn tog" id="dShowEst" title="Show the sizes measured on the sheet">Measured sizes</button>
+          <button class="ibtn tog" id="dShowText" title="Show the text read exactly from the file">File text</button>
+          <div class="vsep"></div>
+          <button class="ibtn tog" id="dEdit" title="Move and resize the view boxes">Edit views</button>
+          <button class="ibtn tog" id="dMeasure" title="Measure a distance on the sheet">Measure</button>
+          <button class="ibtn tog" id="dCalib" title="Pick two points and enter their real distance">Calibrate</button>
+          <div class="vright">
+            <span class="hint" id="dInfo"></span>
+            <button class="ibtn" id="dFit" title="Fit the sheet"></button>
+          </div>
+        </div>
+        <div class="dstage" id="dStage">
+          <div class="vempty" id="dEmpty"></div>
+          <canvas id="dCanvas"></canvas>
+        </div>
+      </section>
+
+      <!-- compare -->
+      <section class="cpage" id="c-compare">
+        <div class="pscroll wide" id="cmpBody"></div>
+      </section>
+
+      <!-- code -->
+      <section class="cpage" id="c-code">
+        <div class="vtoolbar">
+          <span class="hint" id="codeInfo"></span>
+          <div class="vright">
+            <button class="btn sm" id="codeRevert" title="Discard the edits and show the code of the current version">Revert</button>
+            <button class="btn sm" id="codeCopy" title="Copy the code to the clipboard">Copy</button>
+            <button class="btn sm primary" id="codeRun" title="Build the edited code as a new version">Build this code</button>
+          </div>
+        </div>
+        <div class="codewrap">
+          <pre class="gutter" id="codeGutter"></pre>
+          <textarea id="codeEdit" spellcheck="false" wrap="off"></textarea>
+        </div>
+        <div class="codeerr" id="codeErr" hidden></div>
+      </section>
+
+      <!-- values / report -->
+      <section class="cpage" id="c-values">
+        <div class="pscroll wide" id="valBody"></div>
+      </section>
+    </main>
+
+    <aside class="rpanel">
+      <div class="rptabs" id="rptabs">
+        <button data-r="inspect" class="on">Inspector</button>
+        <button data-r="params">Parameters</button>
+        <button data-r="parts">Parts</button>
+      </div>
+      <div class="pscroll rpage on" id="r-inspect"></div>
+      <div class="pscroll rpage" id="r-params"></div>
+      <div class="pscroll rpage" id="r-parts"></div>
+    </aside>
+  </div>
+
+  <!-- ================================================================ dock -->
+  <section class="dock" id="dock">
+    <div class="dtabs" id="dtabs">
+      <button data-d="console" class="on">Console</button>
+      <button data-d="ai">AI output</button>
+      <button data-d="engine">Engine log</button>
+      <button class="ibtn dtoggle" id="dockToggle" title="Show / hide the dock"></button>
+    </div>
+    <div class="dpage on" id="d-console"><pre id="console"></pre></div>
+    <div class="dpage" id="d-ai"><pre id="aiout" class="term"></pre></div>
+    <div class="dpage" id="d-engine"><pre id="englog" class="term"></pre></div>
+  </section>
+
+  <footer class="statusbar">
+    <span class="sb-state"><i class="dot idle" id="sbDot"></i><span id="sbState">Ready</span></span>
+    <span id="sbStage" class="sb-stage"></span>
+    <div class="sb-prog"><div id="sbProg"></div></div>
+    <span id="sbTime"></span>
+    <div class="grow"></div>
+    <span id="sbGpu"></span>
+    <span id="sbModel"></span>
+    <span id="sbVer"></span>
+  </footer>
+</div>
+
+<!-- modal -->
+<div class="modal" id="modal" hidden>
+  <div class="mbox">
+    <div class="mhead"><b id="mTitle"></b><button class="ibtn" id="mClose">✕</button></div>
+    <div class="mbody" id="mBody"></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>window.AICAD = {version: "{{ version }}"};</script>
+<script src="/static/icons.js?v={{ version }}"></script>
+<script src="/static/drawing.js?v={{ version }}"></script>
+<script type="module" src="/static/viewer3d.js?v={{ version }}"></script>
+<script src="/static/app.js?v={{ version }}"></script>
+</body>
+</html>

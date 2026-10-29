@@ -1,0 +1,8 @@
+cadquery
+flask
+waitress
+pypdfium2
+pillow
+numpy
+opencv-python-headless
+ezdxf

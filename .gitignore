@@ -1,0 +1,19 @@
+# offline runtime, packages and engines (built by tools/build_offline.py, shipped in the release zip)
+/python/
+/wheels/
+/runtime/
+/engine/
+/downloads/
+/release/
+/tools/pyrt/
+# AI models (3_GET_AI_MODEL.bat)
+/models/*
+!/models/README.md
+# user data
+/workspace/
+/settings.json
+# build leftovers
+__pycache__/
+*.pyc
+/examples/**/_build/
+*.part

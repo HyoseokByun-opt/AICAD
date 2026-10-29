@@ -1,0 +1,16 @@
+* text=auto
+*.bat text eol=crlf
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.svg text eol=lf
+*.pdf binary
+*.png binary
+*.dxf -text
+*.whl binary
+*.zip binary
+*.gguf binary

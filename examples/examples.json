@@ -1,0 +1,206 @@
+[
+ {
+  "id": "base_plate",
+  "title": "Base plate",
+  "description": "Raster drawing (PNG), third-angle, scale 1:2: plate with corner radii, four holes and a central bore.",
+  "reference": "base_plate/reference.py",
+  "thumb": "base_plate/thumb.png",
+  "truth": {
+   "size": [
+    240.0,
+    160.0,
+    16.0
+   ],
+   "volume": 551501.598,
+   "solids": 1,
+   "parts": 1,
+   "scale": 2,
+   "mm_per_px": 0.3333333333333333,
+   "views": [
+    {
+     "type": "top",
+     "box": [
+      232.14,
+      218.86,
+      517.86,
+      488.22
+     ]
+    },
+    {
+     "type": "front",
+     "box": [
+      232.14,
+      639.73,
+      517.86,
+      666.67
+     ]
+    },
+    {
+     "type": "right",
+     "box": [
+      625.0,
+      639.73,
+      815.48,
+      666.67
+     ]
+    }
+   ]
+  },
+  "drawing": "base_plate/base_plate.png"
+ },
+ {
+  "id": "pipe_flange",
+  "title": "Pipe flange",
+  "description": "Vector PDF, third-angle, scale 1:2: hub flange with a bolt circle of 8 holes.",
+  "reference": "pipe_flange/reference.py",
+  "thumb": "pipe_flange/thumb.png",
+  "truth": {
+   "size": [
+    250.0,
+    250.0,
+    74.0
+   ],
+   "volume": 1404034.306,
+   "solids": 1,
+   "parts": 1,
+   "scale": 2,
+   "mm_per_px": null,
+   "views": [
+    {
+     "type": "top",
+     "box": [
+      375.0,
+      94.37,
+      672.36,
+      515.06
+     ]
+    },
+    {
+     "type": "front",
+     "box": [
+      375.0,
+      666.57,
+      672.62,
+      791.15
+     ]
+    }
+   ]
+  },
+  "drawing": "pipe_flange/pipe_flange.pdf"
+ },
+ {
+  "id": "l_bracket",
+  "title": "L bracket (one size missing)",
+  "description": "Raster drawing, third-angle, 1:1. The wall thickness is not dimensioned: it has to be measured on the sheet.",
+  "reference": "l_bracket/reference.py",
+  "thumb": "l_bracket/thumb.png",
+  "truth": {
+   "size": [
+    100.0,
+    60.0,
+    80.0
+   ],
+   "volume": 99022.744,
+   "solids": 1,
+   "parts": 1,
+   "scale": 1,
+   "mm_per_px": 0.16666666666666666,
+   "views": [
+    {
+     "type": "top",
+     "box": [
+      279.76,
+      131.31,
+      517.86,
+      333.33
+     ]
+    },
+    {
+     "type": "front",
+     "box": [
+      279.76,
+      484.85,
+      517.86,
+      754.21
+     ]
+    },
+    {
+     "type": "right",
+     "box": [
+      625.0,
+      484.85,
+      767.86,
+      754.21
+     ]
+    }
+   ],
+   "probe": {
+    "view": "front",
+    "value": 10.0,
+    "p1": [
+     279.76,
+     585.86
+    ],
+    "p2": [
+     303.57,
+     585.86
+    ]
+   }
+  },
+  "drawing": "l_bracket/l_bracket.png"
+ },
+ {
+  "id": "pump_skid",
+  "title": "Pump skid (DXF assembly)",
+  "description": "DXF in model space 1:1 with dimension entities: base frame, motor, pump and coupling as an assembly.",
+  "reference": "pump_skid/reference.py",
+  "thumb": "pump_skid/thumb.png",
+  "truth": {
+   "size": [
+    1400.0,
+    700.0,
+    490.0
+   ],
+   "volume": 100331569.706,
+   "solids": 5,
+   "parts": 5
+  },
+  "drawing": "pump_skid/pump_skid.dxf"
+ },
+ {
+  "id": "vessel",
+  "title": "Vertical vessel (description)",
+  "description": "Text only: a vertical tank with ellipsoidal heads, four legs and two nozzles.",
+  "reference": "vessel/reference.py",
+  "thumb": "vessel/thumb.png",
+  "truth": {
+   "size": [
+    1000.0,
+    800.0,
+    2450.0
+   ],
+   "volume": 915084767.787,
+   "solids": 1,
+   "parts": 1
+  },
+  "text": "Vertical storage tank. Cylindrical shell 800 mm outside diameter and 1500 mm straight height, with 2:1 semi-ellipsoidal heads at the top and bottom. It stands on four legs of 100 x 100 mm square section, equally spaced at 45 degrees, reaching 400 mm below the bottom of the lower head. One 100A nozzle (OD 114.3 mm) on the centre of the top head, 150 mm high. One 50A side nozzle (OD 60.5 mm) 300 mm above the bottom tangent line, pointing along +X and ending 600 mm from the vessel axis."
+ },
+ {
+  "id": "stepped_shaft",
+  "title": "Stepped shaft (description)",
+  "description": "Text only: a turned shaft with four diameters, chamfers and a keyway.",
+  "reference": "stepped_shaft/reference.py",
+  "thumb": "stepped_shaft/thumb.png",
+  "truth": {
+   "size": [
+    320.0,
+    50.0,
+    50.0
+   ],
+   "volume": 498456.245,
+   "solids": 1,
+   "parts": 1
+  },
+  "text": "Stepped shaft along the X axis, starting at x = 0: diameter 40 mm for 60 mm, then diameter 50 mm for 150 mm, then diameter 45 mm for 40 mm, then diameter 35 mm for 70 mm. 1 mm chamfers on both end faces. A keyway 10 mm wide, 5 mm deep and 50 mm long, centred on the 50 mm section, on top (+Z)."
+ }
+]
