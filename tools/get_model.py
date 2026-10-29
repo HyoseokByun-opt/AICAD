@@ -39,9 +39,9 @@ ENGINE_FILES = {
 
 def human(n):
     for u in ("B", "kB", "MB", "GB"):
-        if n < 1024 or u == "GB":
+        if n < 1000 or u == "GB":
             return f"{n:.1f} {u}" if u != "B" else f"{n} B"
-        n /= 1024
+        n /= 1000
 
 
 def download(url, dest: Path, size=None):
