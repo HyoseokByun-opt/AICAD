@@ -402,6 +402,29 @@
   }
 
   // ------------------------------------------------------------------ export
+  async function makeAnalysis() {
+    if (!P()) return;
+    const b = $("#anRun");
+    if (b) { b.disabled = true; b.textContent = "Working ..."; }
+    try {
+      logLine("Deriving the beam and shell model from the solids ...");
+      const r = await api("POST", `/api/projects/${P().id}/analysis`, {
+        pipes: $("#anPipes").value, esize: parseFloat($("#anSize").value || "0") || 0, join: $("#anJoin").checked });
+      S.analysis = { ...r, pid: P().id };
+      logLine(`Analysis model: ${r.beams} beams, ${r.shells} shell surfaces, ${r.solids} solids; ${r.nodes} nodes, ${r.beam_elements + r.shell_elements} elements.`, "ok");
+      (r.notes || []).slice(0, 10).forEach((n) => logLine("  " + n, "warn"));
+      const view = await (await fetch(fileUrl(r.view))).json();
+      if (S.viewer) { S.viewer.setAnalysis(view); S.viewer.showAnalysis(true); syncStyle(); }
+      setCtab("model");
+    } catch (e) { toast(e.message, true); logLine(e.message, "error"); }
+    renderLeft();
+  }
+
+  // the style buttons follow the viewer (the analysis overlay switches it to see-through)
+  function syncStyle() {
+    if (S.viewer) $$("#vStyle button").forEach((x) => x.classList.toggle("on", x.dataset.s === S.viewer.style));
+  }
+
   async function doExport(fmt) {
     if (!P()) return;
     try {
@@ -600,6 +623,20 @@
     h += sec("Other formats", "layers", `<label class="f">STL tolerance <span class="u">mm</span></label><input id="expTol" value="0.05">
       <div class="g2" style="margin-top:8px;gap:6px">${[["stl", "STL"], ["glb", "glTF (GLB)"], ["brep", "BREP"], ["dxf", "2D drawing (DXF)"], ["py", "Code (.py)"], ["zip", "Package (.zip)"]].map(([f, l]) => `<button class="btn" data-exp="${f}" ${v && (v.ok || f === "py" || f === "zip") ? "" : "disabled"}>${l}</button>`).join("")}</div>
       <div class="desc">The DXF holds the front, top and right views with hidden lines and overall dimensions.</div>`);
+    const an = S.analysis && P() && S.analysis.pid === P().id ? S.analysis : null;
+    h += sec("Analysis model (beams and shells)", "ruler", `
+      <div class="desc" style="margin-top:0">Members and pipes become beams (centre line and section), thin walls become shells (mid-surface and thickness); other solids stay solids.</div>
+      <label class="f">Pipes as</label><select id="anPipes"><option value="beam">Beams (centre line, pipe section)</option><option value="shell">Shells (mid-surface)</option></select>
+      <label class="f">Element size <span class="u">mm</span></label><input id="anSize" value="0">
+      <label class="chk"><input type="checkbox" id="anJoin" checked> Connect member ends to the members they meet</label>
+      <button class="btn primary block" style="margin-top:8px" id="anRun" ${v && v.ok ? "" : "disabled"}>${I("ruler")} Create analysis model</button>
+      <div class="desc">0 = about 1/60 of the model size. Files: STEP (centre lines, mid-surfaces, remaining solids), input deck (.inp, keyword format of CalculiX: B31 beams, S3 shells, sections, steel), section table (.csv).</div>
+      ${an ? `<table class="t" style="margin-top:8px">
+        <tr><td>Beams</td><td class="n">${an.beams}</td></tr><tr><td>Shell surfaces</td><td class="n">${an.shells}</td></tr>
+        <tr><td>Solids left as solids</td><td class="n">${an.solids}</td></tr><tr><td>Nodes / elements</td><td class="n">${an.nodes} / ${an.beam_elements + an.shell_elements}</td></tr>
+        <tr><td>Member ends connected</td><td class="n">${an.joined}</td></tr>${an.general_sections ? `<tr><td>General sections</td><td class="n">${an.general_sections}</td></tr>` : ""}</table>
+        <div class="g2" style="margin-top:6px;gap:6px"><a class="btn" href="${fileUrl(an.zip, true)}">${I("download")} Files (.zip)</a><button class="btn" id="anShow">${S.viewer && S.viewer.analysisOn ? "Hide in 3D" : "Show in 3D"}</button></div>
+        ${an.notes && an.notes.length ? `<div class="desc">${an.notes.slice(0, 4).map(esc).join("<br>")}</div>` : ""}` : ""}`);
     h += sec("Exported in this session", "download", S.exported.length ? `<table class="t">${S.exported.map((e) => `<tr><td><a href="${fileUrl(e.file, true)}">${esc(e.file.split("/").pop())}</a></td><td class="n">${fmt_bytes(e.size)}</td></tr>`).join("")}</table>` : `<div class="empty">Nothing yet.</div>`);
     return h;
   }
@@ -660,6 +697,8 @@
     on("#editGo", "click", editAI);
     on("#refineGo", "click", refine);
     $$("[data-exp]").forEach((b) => b.addEventListener("click", () => doExport(b.dataset.exp)));
+    on("#anRun", "click", makeAnalysis);
+    on("#anShow", "click", () => { if (S.viewer) { S.viewer.showAnalysis(!S.viewer.analysisOn); syncStyle(); setCtab("model"); renderLeft(); } });
     $$("[data-cmd]").forEach((b) => b.addEventListener("click", () => window.CAD.start(b.dataset.cmd)));
     $$("#meshQ button").forEach((b) => b.addEventListener("click", async () => { await api("POST", "/api/settings", { mesh_quality: b.dataset.q }); await refreshStatus(); renderLeft(); }));
     // switches save immediately; text fields with Save

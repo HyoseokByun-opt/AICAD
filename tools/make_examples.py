@@ -150,6 +150,50 @@ nz_side = cq.Workplane("YZ", origin=(0, 0, z0 + side_nz_z)).circle(side_nz_d / 2
 result = body.union(legs).union(nz_top).union(nz_side)
 '''
 
+TOWER = '''import cadquery as cq
+import aicad_lib as lib
+
+# --- PARAMETERS (mm) ---
+a = 4000.0              # leg spacing, square [description]
+h = 9000.0              # height to the top of the legs [description]
+leg = "PIPE273x9.3"     # legs [description]
+brace = "PIPE168.3x7.1" # horizontal braces at each level [description]
+diag = "PIPE114.3x6"    # X-braces in every face and bay [description]
+deck_t = 12.0           # deck plate thickness [description]
+deck_w = 4400.0         # deck plate size, square [description]
+tank_d = 2000.0         # tank diameter [description]
+tank_h = 2500.0         # tank straight height [description]
+tank_t = 10.0           # tank wall thickness [description]
+# --- END PARAMETERS ---
+
+levels = [0.0, 3000.0, 6000.0, h]
+corners = [(0.0, 0.0), (a, 0.0), (a, a), (0.0, a)]
+nodes = {f"{i}_{k}": (x, y, z) for k, z in enumerate(levels) for i, (x, y) in enumerate(corners)}
+members = []
+for i in range(4):
+    for k in range(3):
+        members.append((f"{i}_{k}", f"{i}_{k + 1}", leg))
+for k in range(1, 4):
+    for i in range(4):
+        members.append((f"{i}_{k}", f"{(i + 1) % 4}_{k}", brace))
+for k in range(3):
+    for i in range(4):
+        j = (i + 1) % 4
+        members.append((f"{i}_{k}", f"{j}_{k + 1}", diag))
+        members.append((f"{j}_{k}", f"{i}_{k + 1}", diag))
+tower = lib.frame(nodes, members)
+c = a / 2
+# the deck plate is centred on the top of the legs (its mid-plane at z = h)
+deck = lib.plate([(c - deck_w / 2, c - deck_w / 2), (c + deck_w / 2, c - deck_w / 2),
+                  (c + deck_w / 2, c + deck_w / 2), (c - deck_w / 2, c + deck_w / 2)], deck_t, z=h - deck_t / 2)
+tank = lib.vessel((c, c, h + deck_t / 2 + tank_d / 4), tank_d, tank_h, t=tank_t)
+
+assembly = cq.Assembly(name="tubular_tower")
+assembly.add(tower.val(), name="tower", color=cq.Color("steelblue"))
+assembly.add(deck.val(), name="deck", color=cq.Color("gray"))
+assembly.add(tank.val(), name="tank", color=cq.Color("lightgray"))
+'''
+
 SHAFT = '''import cadquery as cq
 
 # --- PARAMETERS (mm) ---
@@ -218,6 +262,15 @@ EXAMPLES = [
               "section, equally spaced at 45 degrees, reaching 400 mm below the bottom of the lower head. One 100A "
               "nozzle (OD 114.3 mm) on the centre of the top head, 150 mm high. One 50A side nozzle (OD 60.5 mm) "
               "300 mm above the bottom tangent line, pointing along +X and ending 600 mm from the vessel axis.")},
+    {"id": "tubular_tower", "title": "Tubular tower with tank (description)", "fmt": "text", "code": TOWER,
+     "name": "TOWER",
+     "description": "Text only: a tower made only of pipes, with a deck plate and a tank - for the beam and shell "
+                    "analysis model (Export tab).",
+     "text": ("Tower of steel pipes. Four vertical legs, pipe OD 273 mm x 9.3 mm wall, at the corners of a 4000 mm "
+              "square, from z = 0 to z = 9000 mm. Horizontal braces, pipe OD 168.3 x 7.1 mm, between the legs at "
+              "z = 3000, 6000 and 9000 mm. X-braces, pipe OD 114.3 x 6 mm, in every face and every bay. A 12 mm deck "
+              "plate, 4400 x 4400 mm, centred on the top of the legs. On the deck, at its centre, a vertical tank "
+              "2000 mm in diameter, 2500 mm straight height, 2:1 ellipsoidal heads, 10 mm wall.")},
     {"id": "stepped_shaft", "title": "Stepped shaft (description)", "fmt": "text", "code": SHAFT, "name": "SHAFT",
      "description": "Text only: a turned shaft with four diameters, chamfers and a keyway.",
      "text": ("Stepped shaft along the X axis, starting at x = 0: diameter 40 mm for 60 mm, then diameter 50 mm for "

@@ -38,6 +38,10 @@ class Viewer {
     this.scene.add(this.root);
     this.helpers = new THREE.Group();
     this.scene.add(this.helpers);
+    this.analysis = new THREE.Group();     // beam and shell model drawn over the solids
+    this.analysis.visible = false;
+    this.analysisOn = false;
+    this.scene.add(this.analysis);
     this.parts = [];
     this.style = "shaded-edges";
     this.clip = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
@@ -103,6 +107,7 @@ class Viewer {
     }
     this.root.clear();
     this.helpers.clear();
+    this._clearAnalysis();
     this.parts = [];
     this.bbox = null;
     this._clearMeasure();
@@ -193,6 +198,63 @@ class Viewer {
     if (!p) return;
     p.visible = v;
     this.setStyle(this.style);
+  }
+
+  /* the analysis model: beams as coloured centre lines with their nodes,
+     shells as orange mid-surfaces; the solids are shown see-through */
+  _clearAnalysis() {
+    this.analysis.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    this.analysis.clear();
+    this.analysisOn = false;
+    this.analysis.visible = false;
+  }
+
+  setAnalysis(view) {
+    this._clearAnalysis();
+    if (!view) return;
+    const palette = [0x0b62c4, 0x1a7f37, 0x8250df, 0xbf3989, 0x0a7ea4, 0x9a6700, 0x6639ba, 0x116329];
+    const colours = {};
+    const segs = {};
+    const ends = [];
+    for (const b of view.beams || []) {
+      const key = b.section;
+      if (!(key in colours)) colours[key] = palette[Object.keys(colours).length % palette.length];
+      const arr = segs[key] || (segs[key] = []);
+      for (let k = 0; k + 1 < b.pts.length; k++) arr.push(...b.pts[k], ...b.pts[k + 1]);
+      ends.push(...b.pts[0], ...b.pts[b.pts.length - 1]);
+    }
+    for (const [key, arr] of Object.entries(segs)) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
+      const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: colours[key], depthTest: false }));
+      l.renderOrder = 9;
+      this.analysis.add(l);
+    }
+    if (ends.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(ends, 3));
+      const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcf222e, size: 5, sizeAttenuation: false, depthTest: false }));
+      pts.renderOrder = 10;
+      this.analysis.add(pts);
+    }
+    for (const sh of view.shells || []) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(sh.v, 3));
+      g.setIndex(sh.i);
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xe8743b, transparent: true, opacity: 0.55,
+        side: THREE.DoubleSide, depthWrite: false }));
+      m.renderOrder = 8;
+      this.analysis.add(m, new THREE.LineSegments(new THREE.EdgesGeometry(g, 30),
+        new THREE.LineBasicMaterial({ color: 0xa04000 })));
+    }
+    this.analysisLegend = Object.entries(colours).map(([k, c]) => ({ section: k, color: "#" + c.toString(16).padStart(6, "0") }));
+  }
+
+  showAnalysis(on) {
+    this.analysisOn = !!on && this.analysis.children.length > 0;
+    this.analysis.visible = this.analysisOn;
+    this.setStyle(this.analysisOn ? "xray" : (this.style === "xray" ? "shaded-edges" : this.style));
   }
 
   /* a placeholder (component not modelled) is drawn see-through */

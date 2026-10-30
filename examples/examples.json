@@ -204,6 +204,24 @@
   "text": "Stepped shaft along the X axis, starting at x = 0: diameter 40 mm for 60 mm, then diameter 50 mm for 150 mm, then diameter 45 mm for 40 mm, then diameter 35 mm for 70 mm. 1 mm chamfers on both end faces. A keyway 10 mm wide, 5 mm deep and 50 mm long, centred on the 50 mm section, on top (+Z)."
  },
  {
+  "id": "tubular_tower",
+  "title": "Tubular tower with tank (description)",
+  "description": "Text only: a tower made only of pipes, with a deck plate and a tank - for the beam and shell analysis model (Export tab).",
+  "reference": "tubular_tower/reference.py",
+  "thumb": "tubular_tower/thumb.png",
+  "truth": {
+   "size": [
+    4400.0,
+    4400.0,
+    12551.72
+   ],
+   "volume": 1167911402.684,
+   "solids": 50,
+   "parts": 3
+  },
+  "text": "Tower of steel pipes. Four vertical legs, pipe OD 273 mm x 9.3 mm wall, at the corners of a 4000 mm square, from z = 0 to z = 9000 mm. Horizontal braces, pipe OD 168.3 x 7.1 mm, between the legs at z = 3000, 6000 and 9000 mm. X-braces, pipe OD 114.3 x 6 mm, in every face and every bay. A 12 mm deck plate, 4400 x 4400 mm, centred on the top of the legs. On the deck, at its centre, a vertical tank 2000 mm in diameter, 2500 mm straight height, 2:1 ellipsoidal heads, 10 mm wall."
+ },
+ {
   "id": "turbine_unit",
   "title": "Turbine and generator unit, 1925 (hard)",
   "description": "Real drawing, HAER AL-47-A (Wilson Dam): half section of a 35,000 hp Francis turbine and generator. No dimensions at all - sizes only from the graphic scale bars; two scales on one sheet.",

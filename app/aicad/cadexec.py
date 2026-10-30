@@ -714,6 +714,19 @@ def _export(req):
     return {"ok": True, "path": str(path)}
 
 
+def _idealize(req):
+    """Re-run a version's code and derive the beam and shell model from its solids."""
+    from . import idealize
+    code = Path(req["code_file"]).read_text(encoding="utf-8")
+    ns, shown, _ = _exec(code)
+    parts, _assy = _collect(ns, shown)
+    if not parts:
+        return {"ok": False, "error": "The code produced no shape."}
+    return idealize.build(parts, Path(req["outdir"]), req["name"], esize=float(req.get("esize") or 0),
+                          pipes=req.get("pipes", "beam"), join=bool(req.get("join", True)),
+                          density=float(req.get("density", 7.85)))
+
+
 def _export_drawing_dxf(comp, path, name, projection):
     """A 2D drawing of the model: front, top and right views in third-angle
     (or first-angle) layout, hidden lines dashed, overall dimensions."""
@@ -777,6 +790,8 @@ def _worker_main(conn):
                 r = _build(req)
             elif op == "export":
                 r = _export(req)
+            elif op == "idealize":
+                r = _idealize(req)
             elif op == "ping":
                 r = {"ok": True, "pid": os.getpid()}
             elif op == "quit":
@@ -860,6 +875,12 @@ class CadWorker:
         req = {"op": "export", "code_file": str(code_file), "format": fmt, "path": str(path)}
         req.update(kw)
         return self.call(req, timeout=300)
+
+    def idealize(self, code_file, outdir, name, **kw):
+        """Beam and shell analysis model of a version (see idealize.py)."""
+        req = {"op": "idealize", "code_file": str(code_file), "outdir": str(outdir), "name": name}
+        req.update(kw)
+        return self.call(req, timeout=900)
 
 
 _WORKER = None

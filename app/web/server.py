@@ -488,6 +488,36 @@ def export(pid):
     return jsonify({"ok": True, "file": f"exports/{out.name}", "size": out.stat().st_size})
 
 
+@app.post("/api/projects/<pid>/analysis")
+def analysis_model(pid):
+    """Beam and shell model for structural analysis, derived from the solids of a version."""
+    p = _project(pid)
+    body = request.get_json(force=True) or {}
+    vid = body.get("version") or p.data.get("current")
+    v = p.version(vid)
+    if not v or not v.get("ok"):
+        return _err("Build a model first.")
+    base = re.sub(r"[^\w\-]+", "_", p.data.get("name") or "model").strip("_") or "model"
+    name = f"{base}_{vid}_analysis"
+    out = p.dir / "exports" / name
+    if out.exists():
+        shutil.rmtree(out, ignore_errors=True)
+    s = paths.load_settings()
+    r = worker().idealize(p.version_dir(vid) / "model.py", out, name,
+                          esize=float(body.get("esize") or 0), pipes=body.get("pipes", "beam"),
+                          join=bool(body.get("join", True)), density=float(s.get("density", 7.85)))
+    if not r.get("ok"):
+        return _err(r.get("error", "The analysis model could not be made."))
+    zp = p.dir / "exports" / f"{name}.zip"
+    with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in r["files"]:
+            if not f.endswith("_view.json"):
+                z.write(out / f, f)
+    r["zip"] = f"exports/{zp.name}"
+    r["view"] = f"exports/{name}/{name}_view.json"
+    return jsonify(r)
+
+
 # ------------------------------------------------------------------ examples
 @app.get("/api/examples")
 def examples():

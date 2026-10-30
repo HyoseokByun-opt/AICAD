@@ -133,13 +133,16 @@ API_SUMMARY = """lib functions (mm, Z up, global coordinates; each returns a Wor
              lib.ladder((x,y,z), top_z) ; lib.stair(p_bottom, p_top, width=900)
   piping:    lib.pipe([p0,p1,p2,...], od, t=None) ; lib.flange(center, direction, od, t, bore, pcd, n_bolts, bolt_d) ;
              lib.nozzle(base, direction, od, length, flange_od=None, flange_t=None)
-  vessels:   lib.vessel(base, d, h, head="2:1"|"hemi"|"cone"|"flat", axis="z") ; lib.dish(center, d, h, direction)
+  vessels:   lib.vessel(base, d, h, head="2:1"|"hemi"|"cone"|"flat", axis="z", t=None) ; lib.dish(center, d, h, direction)
+             (give the wall thickness t when it is known: the vessel is then hollow and can become a shell model)
   machines:  lib.blade_row(origin, n, r_hub, r_tip, height, stagger=30, twist=0, axis="z")  (height = axial width) ;
              lib.bolt_holes(center, direction, pcd, n, d, length)  (cut tools) ;
              lib.polar(shape, n, origin, axis) ; lib.linear(shape, n, (dx,dy,dz)) ;
              lib.spiral_case(origin, inlet_d, r_stay, axis="z")  (turbine/pump volute) ;
              lib.transition(p0, ("circle", d), p1, ("rect", w, h))  (draft tubes, ducts, hoppers, reducers)
-  grouping:  lib.compound(a, b, [c, d], ...)  several solids as one part without slow unions"""
+  grouping:  lib.compound(a, b, [c, d], ...)  several solids as one part without slow unions
+  analysis:  structures are also turned into beam and shell models: build members with lib.member/lib.frame
+             (separate solids, not fused), pipes with lib.pipe and their wall t, plates with lib.plate"""
 
 
 CODE_RULES = f"""{AXES}

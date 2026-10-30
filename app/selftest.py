@@ -7,6 +7,7 @@ and (with --ai) one round trip through the AI engine.
 """
 from __future__ import annotations
 
+import csv
 import json
 import multiprocessing as mp
 import shutil
@@ -155,6 +156,48 @@ def main():
             assert r["ok"] and r["metrics"]["parts"] == 4, r.get("error") or r["metrics"]["parts"]
             return "hole, fillet, pad added, edited and suppressed; component moved and deleted in an assembly"
         check("CAD features (command line / history)", cad_features)
+
+        def analysis_model():
+            code = ("import cadquery as cq\nimport aicad_lib as lib\n"
+                    "col = lib.member('HEB300', (5000, 0, 0), (5000, 0, 4000))\n"
+                    "beam = lib.member('IPE300', (5150, 0, 3000), (9000, 0, 3000))\n"
+                    "pipe = lib.pipe([(0, 4000, 500), (3000, 4000, 500), (3000, 4000, 3000)], 168.3, 7.1)\n"
+                    "deck = lib.plate([(7000, 0), (9000, 0), (9000, 1500), (7000, 1500)], 12, z=1000)\n"
+                    "tank = lib.vessel((0, 0, 0), 2000, 3000, t=12)\n"
+                    "block = lib.box(10000, 0, 0, 10500, 500, 500)\n"
+                    "assembly = cq.Assembly(name='rig')\n"
+                    "for n, s in [('col', col), ('beam', beam), ('pipe', pipe), ('deck', deck), ('tank', tank), ('block', block)]:\n"
+                    "    assembly.add(s.val(), name=n)\n")
+            (tmp / "anl.py").write_text(code, encoding="utf-8")
+            r = w.idealize(tmp / "anl.py", tmp / "anl", "rig", esize=250)
+            assert r.get("ok"), r.get("error")
+            assert (r["beams"], r["shells"], r["solids"], r["joined"]) == (4, 4, 1, 1), r
+            rows = {x["component"] + x["section"]: x for x in csv.DictReader(open(tmp / "anl" / "rig_sections.csv", encoding="utf-8"))}
+            heb = rows["colI 300x300x11x19"]
+            assert abs(float(heb["area_mm2"]) - 14282) < 0.5 and abs(float(heb["I11_mm4"]) - 2.41868e8) < 1e3, heb
+            assert abs(float(rows["beamI 300x150x7.1x10.7"]["length_mm"]) - 4000) < 0.5        # joined to the column axis
+            inp = (tmp / "anl" / "rig.inp").read_text(encoding="utf-8")
+            assert "SECTION=PIPE\n84.15, 7.1" in inp and "*SHELL SECTION, ELSET=S1" in inp and "TYPE=B31" in inp
+            # the shell meshes cover their surfaces (no holes): element areas against the surface areas
+            import numpy as np
+            nodes, mode, es, area = {}, None, None, {}
+            for ln in inp.splitlines():
+                if ln.startswith("*"):
+                    mode = "N" if ln.startswith("*NODE") else ("S" if "TYPE=S3" in ln else None)
+                    es = ln.split("ELSET=")[1] if mode == "S" else es
+                elif mode == "N":
+                    i, *xyz = ln.split(",")
+                    nodes[int(i)] = np.array([float(c) for c in xyz])
+                elif mode == "S":
+                    a, b, c = (nodes[int(x)] for x in ln.split(",")[1:])
+                    area[es] = area.get(es, 0.0) + float(np.linalg.norm(np.cross(b - a, c - a))) / 2
+            byset = {x["set"]: float(x["area_mm2"]) for x in csv.DictReader(open(tmp / "anl" / "rig_sections.csv", encoding="utf-8"))
+                     if x["kind"] == "shell"}
+            ratios = [area.get(k, 0.0) / v for k, v in byset.items()]
+            assert len(ratios) == 4 and min(ratios) > 0.98 and max(ratios) < 1.001, ratios
+            return (f"{r['beams']} beams (I and pipe sections exact), {r['shells']} shells (plate, vessel shell and heads), "
+                    f"1 solid kept; member end joined; {r['nodes']} nodes, {r['beam_elements'] + r['shell_elements']} elements")
+        check("Beam and shell analysis model", analysis_model)
 
         # -------------------------------------------------------- references
         for ex in ex_index:

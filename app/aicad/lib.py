@@ -433,16 +433,43 @@ def dish(center, d, h, direction=(0, 0, 1)):
     return w.translate(c.toTuple())
 
 
-def vessel(base, d, h, head="2:1", axis="z", top=True, bottom=True):
+def vessel(base, d, h, head="2:1", axis="z", top=True, bottom=True, t=None):
     """A cylindrical vessel: shell of diameter d and straight height h starting
     at `base` (centre of the bottom tangent line), heads '2:1' (ellipsoidal),
-    'hemi', 'torispherical' (approx.), 'cone' or 'flat'."""
+    'hemi', 'torispherical' (approx.), 'cone' or 'flat'. With a wall
+    thickness t the vessel is hollow (needed for a shell analysis model);
+    without it, it is a solid envelope."""
+    body = _vessel_solid(base, d, h, head, axis, top, bottom)
+    if t and 0 < t < d / 4:
+        # hollow: the inner body is the same vessel, t smaller all round (the heads t lower)
+        dv = _v({"z": (0, 0, 1), "x": (1, 0, 0), "y": (0, 1, 0)}[axis.lower()])
+        hh = _head_height(head, d)
+        b, hi = _v(base), h
+        if hh <= 0:              # flat ends: the inner cavity stops t short of each closed end
+            if bottom:
+                b, hi = b + dv * t, hi - t
+            if top:
+                hi -= t
+        inner = _vessel_solid(b.toTuple(), d - 2 * t, hi, head, axis, top, bottom, hh=max(hh - t, 0.0) if hh > 0 else 0.0)
+        try:
+            return body.cut(inner)
+        except Exception:  # noqa: BLE001 - fall back to the solid envelope
+            return body
+    return body
+
+
+def _head_height(head, d):
+    return {"2:1": d / 4, "hemi": d / 2, "torispherical": d * 0.2, "cone": d * 0.4, "flat": 0}.get(head, d / 4)
+
+
+def _vessel_solid(base, d, h, head, axis, top, bottom, hh=None):
     b = _v(base)
     dirs = {"z": (0, 0, 1), "x": (1, 0, 0), "y": (0, 1, 0)}
     dv = _v(dirs[axis.lower()])
     top_c = b + dv * h
     body = cyl(b.toTuple(), top_c.toTuple(), d)
-    hh = {"2:1": d / 4, "hemi": d / 2, "torispherical": d * 0.2, "cone": d * 0.4, "flat": 0}.get(head, d / 4)
+    if hh is None:
+        hh = _head_height(head, d)
     if hh > 0:
         if head == "cone":
             if top:
