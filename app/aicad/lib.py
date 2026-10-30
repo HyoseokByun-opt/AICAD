@@ -583,6 +583,193 @@ def spiral_case(origin, inlet_d, r_stay, axis="z", n=12, wrap=345.0, start_angle
     return s.translate(o.toTuple())
 
 
+# =================================================================== editing
+# Features added by the user in the program (command line / feature tree).
+# Faces and edges are found by the point the user clicked, not by an index,
+# so a feature still finds its face when the model before it changes.
+
+def _shape(t):
+    if isinstance(t, cq.Workplane):
+        vals = [v for v in t.vals() if isinstance(v, cq.Shape)]
+        return vals[0] if len(vals) == 1 else cq.Compound.makeCompound(vals)
+    return t
+
+
+def _wp_of(s):
+    return s if isinstance(s, cq.Workplane) else cq.Workplane().add(s)
+
+
+def nearest_face(target, point):
+    s = _shape(target)
+    p = _v(point)
+    return min(s.Faces(), key=lambda f: f.distance(cq.Vertex.makeVertex(p.x, p.y, p.z)))
+
+
+def nearest_edges(target, points):
+    s = _shape(target)
+    out = []
+    for q in points:
+        p = _v(q)
+        v = cq.Vertex.makeVertex(p.x, p.y, p.z)
+        e = min(s.Edges(), key=lambda e: e.distance(v))
+        if not any(e.isSame(o) for o in out):
+            out.append(e)
+    return out
+
+
+def _tools(point, normal, make, count=1, pitch=(0, 0, 0)):
+    p, n, st = _v(point), _v(normal).normalized(), _v(pitch)
+    out = []
+    for i in range(max(1, int(count))):
+        out.append(make(p + st * i, n))
+    return cq.Compound.makeCompound(out)
+
+
+def f_hole(target, point, normal, d, depth=0.0, cbore_d=0.0, cbore_depth=0.0, count=1, pitch=(0, 0, 0)):
+    """Hole of diameter d into the face at `point` (normal pointing out of the
+    material); depth 0 = through all. Optional counterbore and a row of
+    `count` holes, each `pitch` (x, y, z) from the previous one."""
+    s = _shape(target)
+    L = depth if depth and depth > 0 else s.BoundingBox().DiagonalLength * 2
+
+    def make(c, n):
+        tool = cq.Solid.makeCylinder(d / 2, L + 0.5, c + n * 0.5, -n)
+        if cbore_d and cbore_depth:
+            tool = tool.fuse(cq.Solid.makeCylinder(cbore_d / 2, cbore_depth + 0.5, c + n * 0.5, -n))
+        return tool
+    return _wp_of(s.cut(_tools(point, normal, make, count, pitch)))
+
+
+def _profile_solid(c, n, shape, w, h, length, angle=0.0):
+    x, y = _frame(n)
+    if angle:
+        a = math.radians(angle)
+        x, y = x * math.cos(a) + y * math.sin(a), y * math.cos(a) - x * math.sin(a)
+    wp = cq.Workplane(cq.Plane(origin=c, xDir=x, normal=n))
+    if shape == "circle":
+        wp = wp.circle(w / 2)
+    elif shape == "slot":
+        wp = wp.slot2D(max(w, h), min(w, h), 0 if w >= h else 90)
+    else:
+        wp = wp.rect(w, h)
+    return wp.extrude(length).val()
+
+
+def f_boss(target, point, normal, w, h=None, height=10.0, shape="rect", angle=0.0, count=1, pitch=(0, 0, 0)):
+    """A rectangular, round or slotted boss (pad) on the face at `point`,
+    `height` out along the face normal."""
+    s = _shape(target)
+    hh = w if h is None else h
+    tool = _tools(point, normal, lambda c, n: _profile_solid(c - n * 0.01, n, shape, w, hh, height + 0.01, angle),
+                  count, pitch)
+    return _wp_of(s.fuse(tool).clean())
+
+
+def f_pocket(target, point, normal, w, h=None, depth=10.0, shape="rect", angle=0.0, count=1, pitch=(0, 0, 0)):
+    """A rectangular, round or slotted pocket into the face at `point`, `depth` deep."""
+    s = _shape(target)
+    hh = w if h is None else h
+    tool = _tools(point, normal, lambda c, n: _profile_solid(c + n * 0.5, -n, shape, w, hh, depth + 0.5, angle),
+                  count, pitch)
+    return _wp_of(s.cut(tool))
+
+
+def f_fillet(target, points, r):
+    """Round the edges nearest to the clicked points."""
+    s = _shape(target)
+    return _wp_of(s.fillet(r, nearest_edges(s, points)))
+
+
+def f_chamfer(target, points, d):
+    """Bevel the edges nearest to the clicked points."""
+    s = _shape(target)
+    return _wp_of(s.chamfer(d, None, nearest_edges(s, points)))
+
+
+def f_shell(target, point, t):
+    """Hollow the body to wall thickness t, opening the face at `point`."""
+    s = _shape(target)
+    sol = s.Solids()[0] if s.Solids() else s
+    # through the Workplane: the face on the stack, the solid found from its parent
+    return cq.Workplane().add(sol).newObject([nearest_face(sol, point)]).shell(-abs(t))
+
+
+def f_union(target, tool):
+    return _wp_of(_shape(target).fuse(_shape(tool)).clean())
+
+
+def f_cut(target, tool):
+    return _wp_of(_shape(target).cut(_shape(tool)))
+
+
+def f_move(target, dx=0.0, dy=0.0, dz=0.0):
+    return _wp_of(_shape(target).translate(cq.Vector(dx, dy, dz)))
+
+
+def f_rotate(target, origin=(0, 0, 0), axis=(0, 0, 1), angle=0.0):
+    o = _v(origin)
+    return _wp_of(_shape(target).rotate(o, o + _v(axis), angle))
+
+
+def f_mirror(target, origin=(0, 0, 0), normal=(1, 0, 0), keep=True):
+    """Mirror about a plane through `origin` with `normal`; keep=True joins
+    the mirror image to the original (symmetric part), False replaces it."""
+    s = _shape(target)
+    m = s.mirror(cq.Vector(*_v(normal).toTuple()), cq.Vector(*_v(origin).toTuple()))
+    return _wp_of(s.fuse(m).clean() if keep else m)
+
+
+def f_array(target, count=2, step=(100, 0, 0)):
+    """Copies of the body in a row, each `step` from the previous one (one compound)."""
+    s = _shape(target)
+    st = _v(step)
+    return _wp_of(cq.Compound.makeCompound([s.translate(st * i) for i in range(max(1, int(count)))]))
+
+
+# ---- assemblies: edit one component, add or remove one
+def _child(assy, name):
+    for ch in assy.children:
+        if ch.name == name:
+            return ch
+        sub = _child(ch, name)
+        if sub is not None:
+            return sub
+    return None
+
+
+def edit_part(assy, name, fn):
+    """Apply fn (shape in global coordinates -> new shape) to one component."""
+    ch = _child(assy, name)
+    if ch is None:
+        raise ValueError(f"the assembly has no component '{name}'")
+    shapes = [v for v in (ch.obj.vals() if isinstance(ch.obj, cq.Workplane) else [ch.obj]) if isinstance(v, cq.Shape)]
+    obj = shapes[0] if len(shapes) == 1 else cq.Compound.makeCompound(shapes)
+    new = _shape(fn(_wp_of(obj.moved(ch.loc))))
+    ch.obj = new.moved(ch.loc.inverse)
+    return assy
+
+
+def add_part(assy, name, shape, color="gray"):
+    assy.add(_shape(shape), name=name, color=cq.Color(color) if isinstance(color, str) else None)
+    return assy
+
+
+def remove_part(assy, name):
+    ch = _child(assy, name)
+    if ch is None:
+        raise ValueError(f"the assembly has no component '{name}'")
+    if ch in assy.children:
+        assy.remove(name)
+        return assy
+    for parent in [assy] + [c for c in assy.traverse()]:
+        p = parent[1] if isinstance(parent, tuple) else parent
+        if ch in getattr(p, "children", []):
+            p.children.remove(ch)
+            p.objects.pop(ch.name, None)
+            break
+    return assy
+
+
 # =================================================================== assembly
 def compound(*shapes):
     """Several solids or Workplanes as one compound (no boolean union)."""

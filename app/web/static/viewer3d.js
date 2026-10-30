@@ -132,17 +132,18 @@ class Viewer {
       const capMat = new THREE.MeshBasicMaterial({ color: 0xe8743b, side: THREE.BackSide, clippingPlanes: [] });
       const cap = new THREE.Mesh(g, capMat);
       cap.visible = false;
-      const segs = [];
-      for (const pl of pt.edges) {
-        for (let k = 0; k + 5 < pl.length; k += 3) segs.push(pl[k], pl[k + 1], pl[k + 2], pl[k + 3], pl[k + 4], pl[k + 5]);
-      }
+      const segs = [], segEdge = [];   // segEdge: the edge (polyline) of each line segment, for picking
+      pt.edges.forEach((pl, ei) => {
+        for (let k = 0; k + 5 < pl.length; k += 3) { segs.push(pl[k], pl[k + 1], pl[k + 2], pl[k + 3], pl[k + 4], pl[k + 5]); segEdge.push(ei); }
+      });
       const eg = new THREE.BufferGeometry();
       eg.setAttribute("position", new THREE.Float32BufferAttribute(segs, 3));
       const edges = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: 0x1b1f24, clippingPlanes: [] }));
       const grp = new THREE.Group();
       grp.add(mesh, cap, edges);
       this.root.add(grp);
-      this.parts.push({ name: pt.name, mesh, cap, edges, group: grp, faces: pt.faces, color, visible: true });
+      this.parts.push({ name: pt.name, mesh, cap, edges, group: grp, faces: pt.faces, color, visible: true,
+        polys: pt.edges, segEdge });
     });
     this.bbox = box;
     this._grid();
@@ -288,8 +289,97 @@ class Viewer {
     return hits[0];
   }
 
+  /* picking for commands: "face" (a point on a face with its normal and
+     component), "edge" (a point on an edge), or null (normal selection) */
+  setPickMode(mode) {
+    this.pickMode = mode || null;
+    this.renderer.domElement.style.cursor = mode ? "crosshair" : (this.measureOn ? "crosshair" : "");
+    if (!mode) this._clearPickMarks();
+    this.render();
+  }
+
+  _clearPickMarks() {
+    for (const o of [...this.helpers.children]) if (o.userData.helper === "pick") this.helpers.remove(o);
+  }
+
+  _pickMark(pt, color) {
+    const r = this.bbox ? this.bbox.getSize(new THREE.Vector3()).length() * 0.005 : 1;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), new THREE.MeshBasicMaterial({ color: color || 0x8250df, depthTest: false }));
+    m.position.copy(pt);
+    m.renderOrder = 11;
+    m.userData.helper = "pick";
+    this.helpers.add(m);
+  }
+
+  // a picked edge drawn as a thin tube over the model
+  _edgeMark(pl, color) {
+    if (!pl || pl.length < 6) return;
+    const r = this.bbox ? this.bbox.getSize(new THREE.Vector3()).length() * 0.0025 : 0.5;
+    const path = new THREE.CurvePath();
+    for (let k = 0; k + 5 < pl.length; k += 3) {
+      path.add(new THREE.LineCurve3(new THREE.Vector3(pl[k], pl[k + 1], pl[k + 2]), new THREE.Vector3(pl[k + 3], pl[k + 4], pl[k + 5])));
+    }
+    const n = Math.max(1, path.curves.length);
+    const m = new THREE.Mesh(new THREE.TubeGeometry(path, Math.min(400, n * 2), r, 6, false),
+      new THREE.MeshBasicMaterial({ color: color || 0xcf222e, depthTest: false }));
+    m.renderOrder = 11;
+    m.userData.helper = "pick";
+    this.helpers.add(m);
+  }
+
+  _faceAt(hit) {
+    const p = this.parts[hit.object.userData.part];
+    const tri = hit.faceIndex;
+    for (let k = 0; k < p.faces.length; k++) {
+      const f = p.faces[k];
+      if (tri >= f.s && tri < f.s + f.k) return [p, f, k];
+    }
+    return [p, null, -1];
+  }
+
+  _rayEdge(e) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const v = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    const rc = new THREE.Raycaster();
+    rc.setFromCamera(v, this.camera);
+    // a tolerance of about 8 screen pixels in model units
+    const h = this.camera.isOrthographicCamera ? (this.camera.top - this.camera.bottom) / this.camera.zoom
+      : 2 * this.camera.position.distanceTo(this.controls.target) * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    rc.params.Line = { threshold: h * 8 / r.height };
+    const lines = this.parts.filter((p) => p.visible).map((p) => p.edges);
+    let hits = rc.intersectObjects(lines, false);
+    if (this.secAxis) hits = hits.filter((x) => this.clip.distanceToPoint(x.point) >= -1e-6);
+    if (!hits.length) return null;
+    const pi = this.parts.findIndex((p) => p.edges === hits[0].object);
+    const pt = this.parts[pi];
+    const ei = pt.segEdge ? pt.segEdge[Math.floor(hits[0].index / 2)] : undefined;
+    return { point: hits[0].pointOnLine || hits[0].point, part: pt.name, poly: ei === undefined ? null : pt.polys[ei] };
+  }
+
   _click(e) {
+    if (this.pickMode === "edge") {
+      const h = this._rayEdge(e);
+      if (!h) return;
+      if (h.poly) this._edgeMark(h.poly); else this._pickMark(h.point, 0xcf222e);
+      this.render();
+      if (this.onCmdPick) this.onCmdPick({ point: [h.point.x, h.point.y, h.point.z], normal: [0, 0, 1], part: h.part });
+      return;
+    }
     const hit = this._ray(e);
+    if (this.pickMode === "face") {
+      if (!hit) return;
+      const [p, f] = this._faceAt(hit);
+      let n = hit.face ? hit.face.normal.clone() : new THREE.Vector3(0, 0, 1);
+      if (f && f.t === "PLANE" && f.d) n = new THREE.Vector3(...f.d);
+      if (n.dot(this.camera.position.clone().sub(hit.point)) < 0 && !(f && f.t === "PLANE")) n.negate();
+      n.normalize();
+      this._clearPickMarks();
+      this._pickMark(hit.point);
+      this.render();
+      if (this.onCmdPick) this.onCmdPick({ point: [hit.point.x, hit.point.y, hit.point.z], normal: [n.x, n.y, n.z],
+        part: p.name, face: f });
+      return;
+    }
     if (this.measureOn) {
       if (!hit) return;
       this._addMeasure(hit.point);
@@ -438,6 +528,13 @@ class Viewer {
       this.triLabels[i].style.left = (w - S - 6 + (p.x + 1) / 2 * S) + "px";
       this.triLabels[i].style.top = (h - 6 - S + (1 - p.y) / 2 * S) + "px";
     });
+  }
+
+  /* a model point on the canvas, in CSS pixels from its top-left corner */
+  project(p) {
+    this._draw();
+    const v = new THREE.Vector3(p[0], p[1], p[2]).project(this.camera);
+    return { x: (v.x + 1) / 2 * this.stage.clientWidth, y: (1 - v.y) / 2 * this.stage.clientHeight };
   }
 
   screenshot() {

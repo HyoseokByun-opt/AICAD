@@ -45,6 +45,19 @@ PROFILES = [
         ],
     },
     {
+        "id": "qwen3.6-35b-a3b-iq2",
+        "name": "Qwen3.6-35B-A3B · IQ2_XXS (compact, mixture of experts)",
+        "target": "12-16 GB GPU, or CPU with 16 GB RAM (about 3 B parameters active per token)",
+        "min_vram_gb": 13, "ctx": 32768, "image_max_tokens": 2048, "rank": 60,
+        "repo": "unsloth/Qwen3.6-35B-A3B-GGUF", "base": "Qwen/Qwen3.6-35B-A3B", "license": "Apache-2.0",
+        "files": [
+            ["Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf", 10756586464, "2e8f5f705355c56311432d0a8a5d14a696dbb7e4b197d05c75ba805fc1857bef"],
+            # the 8-bit projector of the ggml-org conversion: 0.6 GB instead of 0.9 GB
+            ["mmproj-Qwen3.6-35B-A3B-Q8_0.gguf", 614194304, "904cbf8c8e876220066ab3bf676c7efa40f3da372276fdaf8b01d2fb2a37a51d",
+             "ggml-org/Qwen3.6-35B-A3B-GGUF"],
+        ],
+    },
+    {
         "id": "qwen3.5-9b-q4",
         "name": "Qwen3.5-9B · Q4_K_M",
         "target": "8-16 GB GPU, or CPU (slow)",

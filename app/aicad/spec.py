@@ -71,7 +71,20 @@ def parse_json(text: str):
         s2 = s2.rstrip().rstrip(",")
         s2 += "]" * max(0, s2.count("[") - s2.count("]"))
         s2 += "}" * max(0, s2.count("{") - s2.count("}"))
-    return json.loads(s2)
+    try:
+        return json.loads(s2)
+    except ValueError:
+        return json.loads(_escape_inch_marks(s2))
+
+
+def _escape_inch_marks(s: str) -> str:
+    """Feet-and-inch texts break JSON when the inch mark is not escaped:
+    "18'-10 1/2"" or "3/8" = 1'-0"". An inch mark is a quote right after a
+    digit that is followed by another quote, by ' = ' / 'x' / '-' / '@', by
+    a space and more text, or by a letter."""
+    out = re.sub(r'(?<=[\d/])"(?=")', r'\\"', s)
+    out = re.sub(r'(?<=[\d/])"(?=\s*(?:=|x|X|×|@|-\s*\d|\(|[A-Za-z]{2}|\d))', r'\\"', out)
+    return out
 
 
 def _num(v):

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request, send_file
 
-from aicad import __version__, APP_FULL, APP_NAME, assembly, catalog, jobs, llm, params, paths, pipeline
+from aicad import __version__, APP_FULL, APP_NAME, assembly, catalog, features, jobs, llm, params, paths, pipeline
 from aicad import spec as specmod
 from aicad.cadexec import worker
 from aicad.ingest import SUPPORTED, IngestError, ingest
@@ -136,6 +136,8 @@ def _proj_payload(p: Project):
     cur = d.get("current")
     d["code"] = p.code(cur) if cur else ""
     d["params"] = params.parse(d["code"]) if d["code"] else []
+    d["features"] = features.parse(d["code"]) if d["code"] else []
+    d["model_mode"] = features.model_mode(d["code"]) if d["code"] else "result"
     d["compare"] = p.read_json(f"versions/{cur}/compare.json") if cur else None
     d["views"] = p.read_json(f"versions/{cur}/views.json") if cur else None
     plan = p.read_json("assembly/plan.json")
@@ -389,6 +391,37 @@ def build(pid):
     if not code.strip():
         return _err("There is no code to build.")
     j = jobs.start("build", pid, pipeline.job_build, ai=False, code=code, source=src, note=note)
+    return jsonify({"ok": True, "job": j.id})
+
+
+@app.post("/api/projects/<pid>/feature")
+def feature(pid):
+    """A CAD operation of the user: add, edit, suppress or delete a feature
+    block of the current version's script, then build a new version."""
+    p = _project(pid)
+    code = p.code()
+    if not code:
+        return _err("Build a model first.")
+    body = request.get_json(force=True) or {}
+    act = body.get("action", "add")
+    try:
+        if act == "add":
+            new = features.add(code, body["spec"])
+            note = features.describe(body["spec"])
+        elif act == "edit":
+            new = features.edit(code, int(body["n"]), body["spec"])
+            note = "edited: " + features.describe(body["spec"])
+        elif act == "suppress":
+            new = features.suppress(code, int(body["n"]), bool(body.get("on", True)))
+            note = f"feature {body['n']} {'suppressed' if body.get('on', True) else 'resumed'}"
+        elif act == "delete":
+            new = features.delete(code, int(body["n"]))
+            note = f"feature {body['n']} deleted"
+        else:
+            return _err("unknown action")
+    except (KeyError, ValueError, StopIteration) as e:
+        return _err(f"The operation could not be added: {e}")
+    j = jobs.start("build", pid, pipeline.job_build, ai=False, code=new, source="feature", note=note)
     return jsonify({"ok": True, "job": j.id})
 
 

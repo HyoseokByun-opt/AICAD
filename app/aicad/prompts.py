@@ -73,7 +73,8 @@ Rules:
    (body, legs or skirt, base frame, nozzles and flanges, motor, anchor holes); internal details are not
    needed unless drawn.
 7. If text extracted from the drawing file is supplied, its numbers are exact: use them.
-8. Feet-and-inch drawings: always copy the text exactly (18'-10 1/2"); the program converts it. A drawing without
+8. Feet-and-inch drawings: always copy the text exactly (18'-10 1/2"); the program converts it. Inside JSON
+   strings escape the inch mark: "18'-10 1/2\\"". A drawing without
    dimensions often has a graphic scale bar: report it in "scale_bars" - it gives every size by measurement.
 """
 

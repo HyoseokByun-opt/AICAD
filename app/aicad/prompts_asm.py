@@ -39,6 +39,7 @@ block, no tables). For a graphic scale bar give p1 at its zero mark and p2 at th
 
 READ_VIEW_SYSTEM = f"""You are a senior engineer reading one view of an engineering drawing, enlarged so that the
 text is legible. Report what is written and where, precisely; do not guess numbers that are not there.
+Inside JSON strings escape the inch mark: "18'-10 1/2\\"".
 
 {COORDS} (relative to this enlarged image)
 

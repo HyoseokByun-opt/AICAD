@@ -30,6 +30,7 @@
       <button data-tab="home" class="on">Home</button>
       <button data-tab="drawing">Drawing</button>
       <button data-tab="model">Model</button>
+      <button data-tab="edit">Edit</button>
       <button data-tab="ai">AI</button>
       <button data-tab="export">Export</button>
       <button data-tab="settings">Settings</button>
@@ -94,6 +95,11 @@
           <div class="vhud" id="vHud"></div>
           <div class="vpick" id="vPick" hidden></div>
         </div>
+        <div class="cmdbar" id="cmdBar">
+          <span class="cmdprompt" id="cmdPrompt">Command:</span>
+          <input id="cmdInput" spellcheck="false" autocomplete="off" placeholder="type a command and press Enter">
+          <span class="cmdhint" id="cmdHint"></span>
+        </div>
       </section>
 
       <!-- drawing -->
@@ -151,10 +157,12 @@
       <div class="rptabs" id="rptabs">
         <button data-r="inspect" class="on">Inspector</button>
         <button data-r="params">Parameters</button>
-        <button data-r="parts">Parts / Components</button>
+        <button data-r="history">History</button>
+        <button data-r="parts">Parts</button>
       </div>
       <div class="pscroll rpage on" id="r-inspect"></div>
       <div class="pscroll rpage" id="r-params"></div>
+      <div class="pscroll rpage" id="r-history"></div>
       <div class="pscroll rpage" id="r-parts"></div>
     </aside>
   </div>
@@ -196,6 +204,7 @@
 <script>window.AICAD = {version: "{{ version }}"};</script>
 <script src="/static/icons.js?v={{ version }}"></script>
 <script src="/static/drawing.js?v={{ version }}"></script>
+<script src="/static/cad.js?v={{ version }}"></script>
 <script type="module" src="/static/viewer3d.js?v={{ version }}"></script>
 <script src="/static/app.js?v={{ version }}"></script>
 </body>

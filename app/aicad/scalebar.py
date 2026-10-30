@@ -63,9 +63,27 @@ def _mark(src, dst, box):
 
 
 ASK = ("The image shows a graphic scale bar of an engineering drawing; the bar in question is outlined in red. "
-       "Read its labels and answer with ONE JSON object: {\"length\": the length the WHOLE outlined bar stands for, "
-       "from its left end to its right end (labels 0 1 2 3 4 5 10 -> 10; 10 0 10 20 30 -> 40), \"unit\": \"ft\", \"m\", "
-       "\"mm\" or \"in\", \"labels\": the labels as written}.")
+       "Read the numbers written along it and answer with ONE JSON object: {\"labels\": [the numbers along the "
+       "outlined bar from left to right, as strings exactly as written], \"unit\": \"ft\", \"m\", \"mm\" or \"in\", "
+       "\"length\": the length the whole bar stands for from its left end to its right end}.")
+
+
+def span_from_labels(labels):
+    """The length a bar stands for, from its labels left to right. Labels
+    left of the zero mark count leftwards: '15 0 7.5 15 30 60' spans 75,
+    '10 0 10 20 30' spans 40, '0 1 2 3 4 5 10' spans 10."""
+    from .units import _num
+    nums = []
+    for t in labels or []:
+        try:
+            nums.append(abs(_num(str(t).replace(",", "."))))
+        except (ValueError, TypeError):
+            continue
+    if len(nums) < 2:
+        return None
+    if 0.0 in nums and nums.index(0.0) > 0:
+        return nums[-1] + nums[0]
+    return nums[-1] - nums[0] if nums[-1] > nums[0] else None
 
 
 def refine(job, ask_fn, input_dir, page, workdir, p1, p2, ai_length_mm=None, tag="bar"):
@@ -120,8 +138,11 @@ def refine(job, ask_fn, input_dir, page, workdir, p1, p2, ai_length_mm=None, tag
                                     "repair", 600))
             u = str(raw.get("unit") or "").lower()
             sym = {"ft": "'", "feet": "'", "in": '"', "inch": '"'}.get(u, " " + u)
-            length = units.parse_length(f"{raw.get('length')}{sym}", "mm")
-            how = "measured bar, length read from its labels"
+            # the span is computed from the labels; the AI's own sum is the fallback
+            span = span_from_labels(raw.get("labels"))
+            length = units.parse_length(f"{span if span else raw.get('length')}{sym}", "mm")
+            how = (f"measured bar, labels {' '.join(str(x) for x in raw.get('labels') or [])} {u}" if span
+                   else "measured bar, length read by the AI")
         except Exception:
             length = None
     if not length:

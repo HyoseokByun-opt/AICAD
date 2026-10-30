@@ -99,7 +99,9 @@ def get_profile(pid):
         verified = json.loads(ok_file.read_text())
     except (OSError, ValueError):
         verified = {}
-    for name, size, digest in prof["files"]:
+    for entry in prof["files"]:
+        name, size, digest = entry[:3]
+        repo = entry[3] if len(entry) > 3 else prof["repo"]      # a file may come from another conversion
         f = d / name
         if f.exists() and f.stat().st_size == size and verified.get(name) == digest:
             print(f"    {name}: present and verified")
@@ -108,7 +110,7 @@ def get_profile(pid):
             try:
                 if not (f.exists() and f.stat().st_size == size):
                     print(f"    {name} ({human(size)})")
-                    download(catalog.hf_url(prof["repo"], name), f, size)
+                    download(catalog.hf_url(repo, name), f, size)
                 print("    checking SHA-256 ...", end="", flush=True)
                 if sha256(f) == digest:
                     print(" ok")

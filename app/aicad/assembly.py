@@ -296,29 +296,30 @@ def sheet_scales(sheet: dict, readings: dict, calib=None) -> dict:
     for v in views:
         if owner.get(v["id"]):
             out[v["id"]] = (statistics.median(b["mm_per_px"] for b in owner[v["id"]]), "graphic scale bar")
+    sheet_f = U.scale_factor(sheet.get("scale_text") or "")
     for v in views:
         if v["id"] in out:
             continue
-        sc, src = view_scale(sheet, v, readings.get(v["id"]), None, bars=False)
-        if sc:
-            out[v["id"]] = (sc, src)
-            continue
-        # scale-note ratio to a view whose scale is known
         fv = U.scale_factor(v.get("scale_text") or "")
+        # 1. a scale note of its own that differs from a view with a bar: the ratio
         if fv:
             for w in views:
                 fw = U.scale_factor(w.get("scale_text") or sheet.get("scale_text") or "")
-                if w["id"] in out and fw:
+                if w["id"] in out and fw and abs(fv / fw - 1) > 0.01:
                     out[v["id"]] = (out[w["id"]][0] * fv / fw, f"scale note {v['scale_text']} against {w['id']}")
                     break
-        if v["id"] not in out and bars and len(views) == 1:
-            out[v["id"]] = (bars[0]["mm_per_px"], "graphic scale bar")
-        if v["id"] not in out and bars and not v.get("scale_text"):
-            # no note of its own: the sheet's scale (the nearest bar)
+        # 2. the measured bar of the sheet (a measured bar beats the AI's points)
+        if v["id"] not in out and bars and (not fv or not sheet_f or abs(fv / sheet_f - 1) <= 0.01 or len(views) == 1):
             c = ((v["box"][0] + v["box"][2]) / 2, (v["box"][1] + v["box"][3]) / 2)
             b = min(bars, key=lambda b: vision.dist(((b["p1"][0] + b["p2"][0]) / 2, (b["p1"][1] + b["p2"][1]) / 2), c))
             out[v["id"]] = (b["mm_per_px"], "graphic scale bar of the sheet")
-        out.setdefault(v["id"], (None, None))
+        # 3. the dimensions read in the view: the scale, or a check of the bar
+        sc, src = view_scale(sheet, v, readings.get(v["id"]), None, bars=False)
+        if v["id"] not in out:
+            out[v["id"]] = (sc, src) if sc else (None, None)
+        elif sc and abs(sc / out[v["id"]][0] - 1) > 0.15:
+            out[v["id"]] = (out[v["id"]][0], out[v["id"]][1] +
+                            f" (the dimensions read in the view suggest {sc:.4g} mm/px; the bar is used)")
     return out
 
 

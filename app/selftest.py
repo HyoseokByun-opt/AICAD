@@ -125,6 +125,28 @@ def main():
             return f"{len(res)} building blocks (steel sections, frames, outlines, revolve, piping, vessels, blade rows, assembly)"
         check("Modelling library", library)
 
+        def cad_features():
+            from aicad import features
+            code = (paths.EXAMPLES_DIR / "base_plate" / "reference.py").read_text(encoding="utf-8")
+            code = features.add(code, {"op": "hole", "point": [60, 0, 16], "normal": [0, 0, 1], "d": 12, "depth": 0})
+            code = features.add(code, {"op": "fillet", "points": [[0, -80, 16]], "r": 3})
+            code = features.add(code, {"op": "boss", "point": [-60, 0, 16], "normal": [0, 0, 1], "w": 30, "shape": "circle",
+                                       "height": 25})
+            r = w.build(code, tmp / "feat1")
+            assert r["ok"] and r["metrics"]["size"][2] == 41.0, r.get("error") or r["metrics"]["size"]
+            code = features.edit(code, 3, {"op": "boss", "point": [-60, 0, 16], "normal": [0, 0, 1], "w": 30,
+                                           "shape": "circle", "height": 40})
+            code = features.suppress(code, 1, True)
+            r = w.build(code, tmp / "feat2")
+            assert r["ok"] and r["metrics"]["size"][2] == 56.0, r.get("error") or r["metrics"]["size"]
+            acode = (paths.EXAMPLES_DIR / "pump_skid" / "reference.py").read_text(encoding="utf-8")
+            acode = features.add(acode, {"op": "move", "part": "motor", "dx": -50})
+            acode = features.add(acode, {"op": "delete", "part": "coupling"})
+            r = w.build(acode, tmp / "feat3")
+            assert r["ok"] and r["metrics"]["parts"] == 4, r.get("error") or r["metrics"]["parts"]
+            return "hole, fillet, pad added, edited and suppressed; component moved and deleted in an assembly"
+        check("CAD features (command line / history)", cad_features)
+
         # -------------------------------------------------------- references
         for ex in ex_index:
             if not ex.get("reference"):

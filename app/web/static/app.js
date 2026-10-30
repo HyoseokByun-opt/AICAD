@@ -67,6 +67,14 @@
       { cap: "View", items: [["cam-iso", "cube", "Isometric"], ["fit", "fit", "Fit"], ["section", "section", "Section"], ["measure3d", "ruler", "Measure"]] },
       { cap: "Check", items: [["show-compare", "compare", "Compare with drawing"], ["shot", "camera", "Screen capture"]] },
     ],
+    edit: [
+      { cap: "Modify", items: [["cad-hole", "target", "Hole"], ["cad-pocket", "cube", "Pocket"], ["cad-pad", "cube", "Pad"],
+        ["cad-fillet", "refine", "Fillet"], ["cad-chamfer", "refine", "Chamfer"], ["cad-shell", "cube", "Shell"]] },
+      { cap: "Create", items: [["cad-box", "cube", "Box"], ["cad-cylinder", "cube", "Cylinder"]] },
+      { cap: "Transform", items: [["cad-move", "fit", "Move"], ["cad-rotate", "rebuild", "Rotate"], ["cad-mirror", "compare", "Mirror"],
+        ["cad-array", "layers", "Array"], ["cad-delete", "delete", "Delete component"]] },
+      { cap: "History", items: [["undo", "prev", "Undo"], ["redo", "next", "Redo"], ["show-history", "history", "Feature history"]] },
+    ],
     ai: [
       { cap: "Engine", items: [["ai-start", "power", "Start engine"], ["ai-stop", "stop", "Stop engine"], ["ai-panel", "chip", "Model and GPU"]] },
       { cap: "Create", items: [["generate", "generate", "Generate 3D model", { primary: true }], ["read", "read", "Read drawing only", { ai: true }], ["from-values", "values", "Build from dimensions", { ai: true }]] },
@@ -85,6 +93,7 @@
     home: ["home", "Request", "Drawing and/or description → 3D model"],
     drawing: ["sheet", "Drawing", "Pages, views, scale and measured sizes"],
     model: ["cube", "Model", "Versions and checks"],
+    edit: ["edit", "Edit", "CAD commands and feature history"],
     ai: ["chip", "AI", "Engine, changes by instruction, refinement"],
     export: ["step", "Export", "STEP and other formats"],
     settings: ["gear", "Settings", "Engine, pipeline and workspace"],
@@ -110,7 +119,10 @@
       "from-values": has && P().resolved && !busy, "page-prev": pages > 1, "page-next": pages > 1, "page-del": pages,
       "edit-views": has && P().resolved, "add-view": has && P().resolved, "calib": pages, "measure2d": pages,
       "calib-clear": pages, section: ok, measure3d: ok, shot: ok, "show-compare": ok,
+      undo: has && P().versions.length > 1, redo: has && P().versions.length > 1,
     };
+    for (const k of ["hole", "pocket", "pad", "fillet", "chamfer", "shell", "box", "cylinder", "move", "rotate", "mirror", "array"]) need["cad-" + k] = ok;
+    need["cad-delete"] = ok && P().model_mode === "assembly";
     $$(".rbtn[data-act]").forEach((b) => { const v = need[b.dataset.act]; if (v !== undefined) b.classList.toggle("dis", !v); });
     $("#btnGenerate").disabled = !!busy;
   }
@@ -118,7 +130,11 @@
   // ------------------------------------------------------------------ actions
   async function act(id) {
     try {
+      if (id.startsWith("cad-")) return window.CAD.start(id.slice(4));
       switch (id) {
+        case "undo": return stepVersion(-1);
+        case "redo": return stepVersion(1);
+        case "show-history": return setRtab("history");
         case "new": return newProject();
         case "open": return openProjects();
         case "examples": return openExamples();
@@ -419,7 +435,7 @@
   function renderLeft() {
     const [ic, t, s] = PANEL_HEAD[S.tab];
     $("#lhead").innerHTML = `${I(ic)}<div><b>${t}</b><small>${s}</small></div>`;
-    const f = { home: leftHome, drawing: leftDrawing, model: leftModel, ai: leftAI, export: leftExport, settings: leftSettings }[S.tab];
+    const f = { home: leftHome, drawing: leftDrawing, model: leftModel, edit: leftEdit, ai: leftAI, export: leftExport, settings: leftSettings }[S.tab];
     // text being typed survives a redraw of the panel
     const keep = {};
     for (const id of ["reqText", "editText", "expName"]) { const el = $("#" + id); if (el) keep[id] = el.value; }
@@ -530,6 +546,24 @@
     return h;
   }
 
+  function leftEdit() {
+    const v = curVer();
+    const asm = P() && P().model_mode === "assembly";
+    let h = !v || !v.ok ? `<div class="note">Build or open a model first; commands change the version shown.</div>` : "";
+    h += sec("How to edit", "edit", `<ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">
+      <li>Type a command in the line under the 3D view (or click it here or on the ribbon) and press Enter.</li>
+      <li>Answer the prompts: click a face, edges or a ${asm ? "component" : "body"} in the 3D view, type values.</li>
+      <li><b>Enter</b> takes the value in &lt; &gt;; several values at once: <span class="mono">d=12 depth=20</span>.</li>
+      <li><b>Esc</b> cancels; <b>Enter</b> on an empty line repeats the last command.</li>
+      <li>Each command becomes a feature in <b>History</b>: double-click to change its values, suppress or delete it.</li>
+      <li><b>Ctrl+Z / Ctrl+Y</b> step back and forward through the versions.</li></ol>`);
+    const rows = Object.entries(window.CAD.commands).map(([k, c]) => `<tr><td><button class="btn sm" data-cmd="${k}">${k}</button></td>
+      <td class="hint">${esc(c.steps.map((s) => s.pick ? "click " + s.pick : (s.num || s.vec || s.choice)).join(" → "))}${c.extra ? "<br>" + esc(c.extra) : ""}</td></tr>`).join("");
+    h += sec("Commands", "code", `<table class="t">${rows}</table>`);
+    h += sec("Clicked points", "target", `<div class="desc">Faces and edges are remembered by the point you click, not by a number, so a feature finds its face again when something before it changes. ${asm ? "In an assembly the command changes the component you click." : ""}</div>`);
+    return h;
+  }
+
   function leftAI() {
     const st = S.status;
     if (!st) return `<div class="empty"><span class="spin"></span> Reading the hardware ...</div>`;
@@ -626,6 +660,7 @@
     on("#editGo", "click", editAI);
     on("#refineGo", "click", refine);
     $$("[data-exp]").forEach((b) => b.addEventListener("click", () => doExport(b.dataset.exp)));
+    $$("[data-cmd]").forEach((b) => b.addEventListener("click", () => window.CAD.start(b.dataset.cmd)));
     $$("#meshQ button").forEach((b) => b.addEventListener("click", async () => { await api("POST", "/api/settings", { mesh_quality: b.dataset.q }); await refreshStatus(); renderLeft(); }));
     // switches save immediately; text fields with Save
     $$('input[type=checkbox][data-set]').forEach((c) => c.addEventListener("change", () => api("POST", "/api/settings", { [c.dataset.set]: c.checked }).then(refreshStatus)));
@@ -880,6 +915,7 @@
 
   // ------------------------------------------------------------------ right panel
   function renderRight() {
+    if (S.rtab === "history") window.CAD.renderHistory($("#r-history"), P());
     if (S.rtab === "inspect") renderInspector();
     if (S.rtab === "params") renderParams();
     if (S.rtab === "parts") renderParts();
@@ -1174,6 +1210,20 @@
     document.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) importFile(e.dataTransfer.files[0]); });
     window.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); if (S.dv && S.dv.mode !== "pan") setDvMode("pan"); } });
 
+    window.CAD.init({
+      viewer: () => S.viewer, version: () => curVer(), mode: () => (P() && P().model_mode) || "result",
+      setCtab, toast, log: logLine, modal, closeModal, activeCtab: () => S.ctab,
+      undo: () => P() && stepVersion(-1), redo: () => P() && stepVersion(1),
+      applyFeature: async (body, label) => {
+        try {
+          const r = await api("POST", `/api/projects/${P().id}/feature`, body);
+          S.job = { id: r.job, state: "queued", ai: false };
+          S.jobLog = 0; S.jobStream = 0;
+          logLine(label, "stage");
+          poll();
+        } catch (e) { toast(e.message, true); logLine(e.message, "error"); }
+      },
+    });
     setTab("home");
     setCtab("model");
     refreshStatus();
@@ -1185,7 +1235,9 @@
   function attachViewer() {
     if (S.viewer || !window.Viewer3D) return;
     S.viewer = window.Viewer3D.create($("#vStage"));
+    window.AICAD.viewer = S.viewer;   // for automated UI checks
     S.viewer.onPick = (p) => { S.pick = p; if (S.rtab !== "inspect") setRtab("inspect"); else renderInspector(); };
+    S.viewer.onCmdPick = (info) => window.CAD.onPick(info);
     S.viewer.onMeasure = (m) => { S.measure = m; logLine(`Measured: ${m.d.toFixed(4)} mm (ΔX ${m.dx.toFixed(3)}, ΔY ${m.dy.toFixed(3)}, ΔZ ${m.dz.toFixed(3)})`); setRtab("inspect"); };
     S.meshVersion = null;
     if (S.ctab === "model") renderModel();

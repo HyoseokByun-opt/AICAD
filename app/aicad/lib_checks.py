@@ -42,6 +42,26 @@ result = lib.frame(nodes, [("a","b","HEB240"), ("b","c","IPE360",0,"top"), ("c",
     ("polar + bolt holes", """disc = lib.cyl((0,0,0), (0,0,50), 1000)
 result = disc.cut(lib.bolt_holes((0,0,0), (0,0,1), 850, 12, 40, 50))""", [1000, 1000, 50]),
     ("linear", "result = lib.linear(lib.member('HEB200', (0,0,0), (0,0,3000)), 5, (6000, 0, 0))", None),
+    ("edit: hole, counterbore and a row", """b = lib.box(0,0,0,200,100,20)
+b = lib.f_hole(b, (40,50,20), (0,0,1), 10, 0, cbore_d=18, cbore_depth=5, count=3, pitch=(60,0,0))
+result = b""", [200, 100, 20]),
+    ("edit: boss and pocket", """b = lib.box(0,0,0,200,100,20)
+b = lib.f_boss(b, (50,50,20), (0,0,1), 40, 30, height=15)
+result = lib.f_pocket(b, (150,50,20), (0,0,1), 30, depth=8, shape="circle")""", [200, 100, 35]),
+    ("edit: fillet and chamfer by clicked points", """b = lib.box(0,0,0,100,100,50)
+b = lib.f_fillet(b, [(0,0,25), (100,0,25)], 8)
+result = lib.f_chamfer(b, [(50,100,50)], 3)""", [100, 100, 50]),
+    ("edit: shell", "result = lib.f_shell(lib.box(0,0,0,100,80,60), (50,40,60), 4)", [100, 80, 60]),
+    ("edit: move, rotate, mirror, array", """b = lib.box(0,0,0,50,20,10)
+b = lib.f_move(b, 10, 0, 0)
+b = lib.f_rotate(b, (0,0,0), (0,0,1), 90)
+b = lib.f_mirror(b, (0,0,0), (0,1,0), keep=True)
+result = lib.f_array(b, 3, (0,0,100))""", [20, 120, 210]),
+    ("edit: assembly component", """a = lib.assemble("t", [("p1", "P1", lambda: lib.box(0,0,0,100,100,10), "gray"),
+                         ("p2", "P2", lambda: lib.box(0,0,10,50,50,60), "red")])
+a = lib.edit_part(a, "p2", lambda s: lib.f_hole(s, (25,25,60), (0,0,1), 20))
+a = lib.add_part(a, "p3", lib.cyl((80,80,10), (80,80,40), 20), "steelblue")
+assembly = lib.remove_part(a, "p1")""", [90, 90, 50]),
     ("assemble with a failing component", """def ok():
     return lib.box(0,0,0,100,100,100)
 def bad():

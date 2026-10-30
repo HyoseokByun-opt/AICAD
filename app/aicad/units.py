@@ -45,7 +45,8 @@ def parse_length(text, default_unit: str = "mm"):
     t = _clean(text)
     sign = -1.0 if t.startswith("-") or t.startswith("(-") else 1.0
     # feet and inches: 18'-10 1/2"  18' 10"  21'-0"  168'-0"
-    m = re.search(r"(\d+(?:\.\d+)?)\s*'\s*-?\s*(\d+(?:\.\d+)?(?:\s+\d+\s*/\s*\d+)?|\d+\s*/\s*\d+)?\s*\"?", t)
+    # the bare fraction comes first: 7'-19/32" is 7 ft 19/32 in, not 7 ft 19 in
+    m = re.search(r"(\d+(?:\.\d+)?)\s*'\s*-?\s*(\d+\s*/\s*\d+|\d+(?:\.\d+)?(?:\s+\d+\s*/\s*\d+)?)?\s*\"?", t)
     if m and "'" in t:
         inches = _num(m.group(2)) if m.group(2) else 0.0
         return sign * (float(m.group(1)) * 12 + inches) * INCH

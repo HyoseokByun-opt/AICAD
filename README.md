@@ -20,6 +20,7 @@
 <p align="center">
   <a href="#software-description">Description</a> ·
   <a href="#workflow">Workflow</a> ·
+  <a href="#cad-editing">CAD editing</a> ·
   <a href="#hardware-and-models">Hardware and models</a> ·
   <a href="#installation">Installation</a> ·
   <a href="#usage">Usage</a> ·
@@ -74,6 +75,10 @@ The main capabilities are listed below.
 - **Editing.** Parameters are changed in a table and rebuilt in a fraction of a second without the AI. Changes in
   words ("make the plate 5 mm thicker and add a 2 mm chamfer on the top edges") are applied by the AI to the current
   script. The script itself can be edited and built on the Code tab. Every build is kept as a version.
+- **CAD editing.** Features are added by hand with a command line and clicks in the 3D view: hole (with counterbore
+  and patterns), pocket, pad, fillet, chamfer, shell, box, cylinder, move, rotate, mirror, array and delete. Each
+  command becomes a parametric feature of the model script, listed in a feature history where it can be edited,
+  suppressed or deleted; undo and redo work on the versions.
 - **Viewing.** Interactive 3D view with Z up, orthographic and perspective projection, shaded, edge, wireframe and
   see-through styles, a section plane with coloured cut faces, face picking (plane normal, cylinder diameter and
   axis, cone angle, area), point-to-point measurement, overall dimensions and the six standard views.
@@ -129,8 +134,40 @@ circle-to-rectangle transitions (draft tubes, ducts, hoppers), blade rows, bolt 
      script (2 rounds by default) and the version that agrees best is kept.
 3. **Review** on the Dimensions tab (every value with its source), the Drawing tab (view boxes, measured sizes; boxes
    can be moved and the scale calibrated by two points of known distance) and the Compare tab.
-4. **Adjust** parameters, ask for changes in words, or edit the script.
+4. **Adjust** parameters, add features with the CAD commands, ask for changes in words, or edit the script.
 5. **Export** STEP (and other formats) from the Export tab.
+
+## CAD editing
+
+<p align="center">
+  <img src="docs/images/ui_cad.png" alt="Command line and feature history" width="100%">
+</p>
+
+The generated model can be finished by hand. A command is typed in the command line under the 3D view (typing
+anywhere in the window goes there) or started from the **Edit** tab of the ribbon. The command then asks, step by
+step, for what it needs: a face or edges clicked in the 3D view, and values typed in the command line.
+
+- **Enter** takes the default shown in `< >`; Enter on an empty line repeats the last command; **Esc** cancels.
+- Several values can be given at once as `key=value`, e.g. `pad shape=circle w=30 height=25` or
+  `hole d=13.5 count=4 pitch=0,60,0`. The position is the clicked point, or `at=x,y,z`, shifted by `offset=dx,dy,dz`.
+- ↑ and ↓ recall earlier commands; **Ctrl+Z** and **Ctrl+Y** undo and redo.
+
+| Command (alias) | Picks | Values |
+|---|---|---|
+| `hole` (h) | face | diameter, depth (0 = through); `cbore=`, `cdepth=`, `count=`, `pitch=` |
+| `pocket` (p) | face | shape rect / circle / slot, width, height, depth; `angle=`, `count=`, `pitch=` |
+| `pad` (boss, extrude) | face | shape, width, height of the outline, pad height |
+| `fillet` (f), `chamfer` (c) | edges, Enter when done | radius / size |
+| `shell` | the face to open | wall thickness |
+| `box` (b), `cylinder` (cyl) | the face it stands on | sizes; join: add, cut or new body |
+| `move` (m), `rotate` (ro) | body or component | displacement / axis and angle about the clicked point |
+| `mirror` (mi), `array` (ar) | body or component | plane / number of copies and step |
+| `delete` (del) | component | removes a component of an assembly |
+
+Each command becomes a feature block at the end of the model script. Faces and edges are referenced by the clicked
+point (the nearest face or edge of the current solid is taken), so features usually stay valid when parameters further
+up change; a feature whose point no longer lies on the intended face is corrected in the History. The **History** tab on the right lists the features: double-click (or ✎) to edit the values, ○ to
+suppress, ✕ to delete. The model is rebuilt without the AI in about a second.
 
 ## Hardware and models
 
@@ -142,6 +179,7 @@ automatically from the graphics memory of the PC; any other GGUF vision model ca
 | `qwen3.6-27b-q6` | Qwen3.6-27B, Q6_K ([unsloth/Qwen3.6-27B-GGUF](https://huggingface.co/unsloth/Qwen3.6-27B-GGUF)) | 22.5 + 0.9 GB | 65 536 | 48 GB (RTX 6000 Ada) |
 | `qwen3.6-27b-q4` | Qwen3.6-27B, Q4_K_M | 16.8 + 0.9 GB | 32 768 | 24 GB (RTX 4090) |
 | `qwen3.6-35b-a3b-q4` | Qwen3.6-35B-A3B, Q4_K_M ([unsloth/Qwen3.6-35B-A3B-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF)) | 22.1 + 0.9 GB | 65 536 | 48 GB, optional, faster |
+| `qwen3.6-35b-a3b-iq2` | Qwen3.6-35B-A3B, IQ2_XXS (projector Q8_0 from [ggml-org](https://huggingface.co/ggml-org/Qwen3.6-35B-A3B-GGUF)) | 10.8 + 0.6 GB | 32 768 | 12-16 GB, or CPU with 16 GB RAM |
 | `qwen3.5-9b-q4` | Qwen3.5-9B, Q4_K_M | 5.7 + 0.9 GB | 32 768 | 8-16 GB or CPU |
 | `qwen3.5-4b` | Qwen3.5-4B, Q4_K_M | 2.7 + 0.7 GB | 16 384 | CPU trial only |
 
@@ -184,6 +222,8 @@ wheels and the llama.cpp builds into the folder; continue with step 2.
 | Fix a wrong view box or the scale | **Drawing** tab → *Edit view boxes*, *Calibrate scale* |
 | Rebuild from corrected values | Dimensions tab → *Build model from these values* |
 | Change a size | **Parameters** (right panel) → *Apply* |
+| Add a hole, pocket, fillet ... by hand | Type the command (or **Edit** tab), click the face, type the values |
+| Change or remove a hand-made feature | **History** (right panel): double-click, hide, delete; Ctrl+Z |
 | Change the design in words | AI tab → *Change the model by instruction* |
 | Improve agreement with the drawing | Compare tab → *Refine against drawing* |
 | Measure the model | 3D toolbar → *Measure*; click a face for its geometry |
@@ -200,7 +240,8 @@ model built with the modelling library.
 ## Verification
 
 `app/selftest.py` checks the parts that do not depend on the AI against known answers: the kernel, the code safety
-check and error lines, lengths written in feet-inches and metric, the 30 building blocks of the modelling library, the STEP round trip (identical volume after re-import, part name kept), PDF, DXF and image
+check and error lines, lengths written in feet-inches and metric, 36 known-answer cases of the modelling library (building blocks and editing operations), the CAD features (generated,
+edited, suppressed and rebuilt), the STEP round trip (identical volume after re-import, part name kept), PDF, DXF and image
 import (exact texts and dimension values), all example references, the scale derived from the views (within 2 % of
 the true scale), a size that is not dimensioned measured by ratio (L bracket wall: 10 mm), the outline comparison of
 drawing and model, and every export format. `tools/eval_examples.py` runs all examples through the complete AI
