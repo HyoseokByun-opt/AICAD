@@ -48,6 +48,7 @@ def _bars_in(g, W_ref=None, depth=0):
                 continue
             if strokes >= 2:
                 out.append([int(x) + 1, int(y), int(x + w) - 1, int(y + h), strokes])
+    out += _tick_rows(st, n, W_ref)
     # a faint print breaks a bar into pieces: join pieces on the same height
     # that nearly touch
     out.sort(key=lambda b: b[0])
@@ -64,6 +65,45 @@ def _bars_in(g, W_ref=None, depth=0):
     bars = [tuple(m[:4]) for m in merged if m[4] >= 3 and (m[2] - m[0]) >= 4 * (m[3] - m[1])]
     bars.sort(key=lambda b: -(b[2] - b[0]))
     return bars
+
+
+def _tick_rows(st, n, W_ref):
+    """Rulers whose band is too faint to survive the threshold leave only
+    their ticks: four or more thin vertical strokes standing on one baseline
+    form a bar from the first tick to the last."""
+    ticks = []
+    for i in range(1, n):
+        x, y, w, h, a = (int(v) for v in st[i])
+        if h >= 6 and w <= max(4, h / 3):
+            ticks.append((x + w / 2, y, y + h, h))
+    out, used = [], set()
+    ticks.sort(key=lambda t: t[2])
+    for i, t in enumerate(ticks):
+        if i in used:
+            continue
+        row = [j for j, u in enumerate(ticks) if j not in used and abs(u[2] - t[2]) <= max(3, 0.25 * t[3])]
+        if len(row) < 4:
+            continue
+        used.update(row)
+        members = sorted((ticks[j] for j in row), key=lambda u: u[0])
+        # the row and its pieces between the largest gaps are candidates (text on the same
+        # baseline, or a second ruler, may share the row); the choice is made by the caller
+        stack = [(members, 0)]
+        while stack:
+            ms, depth = stack.pop()
+            if len(ms) < 4:
+                continue
+            xs = [u[0] for u in ms]
+            span = xs[-1] - xs[0]
+            if span < 0.08 * W_ref:
+                continue
+            gaps = [b - a for a, b in zip(xs[:-1], xs[1:])]
+            if max(gaps) <= span / 3:
+                out.append([int(xs[0]), int(min(u[1] for u in ms)), int(xs[-1]), int(max(u[2] for u in ms)), len(ms)])
+            if depth < 3:
+                g = gaps.index(max(gaps)) + 1
+                stack += [(ms[:g], depth + 1), (ms[g:], depth + 1)]
+    return out
 
 
 def _mark(src, dst, box):
@@ -100,8 +140,10 @@ def span_from_labels(labels):
     return nums[-1] - nums[0] if nums[-1] > nums[0] else None
 
 
-def refine(job, ask_fn, input_dir, page, workdir, p1, p2, ai_length_mm=None, tag="bar"):
+def refine(job, ask_fn, input_dir, page, workdir, p1, p2, ai_length_mm=None, tag="bar", expect=None):
     """Measure a scale bar near the AI's points p1, p2 (page pixels).
+    `expect` is the scale (mm/px) of a bar of the same sheet already measured:
+    the candidate that agrees with it is preferred.
     Returns {p1, p2, length_mm, mm_per_px, how} or None."""
     from . import units
     from .spec import parse_json
@@ -125,6 +167,12 @@ def refine(job, ask_fn, input_dir, page, workdir, p1, p2, ai_length_mm=None, tag
     k = crop["page_per_px"]
     oy = (cy - crop["origin"][1]) / k
     best = min(bars[:4], key=lambda b: abs((b[1] + b[3]) / 2 - oy) - 0.15 * (b[2] - b[0]))
+    if expect and ai_length_mm:
+        # another bar of this sheet is measured: take the candidate whose length gives the same scale
+        target = ai_length_mm / expect / k
+        agree = [b for b in bars if abs((b[2] - b[0]) / target - 1) <= 0.12]
+        if agree:
+            best = min(agree, key=lambda b: abs((b[2] - b[0]) / target - 1))
     cw = crop["size"][0]
     if best[0] <= 3 or best[2] >= cw - 4:
         # the bar runs out of the area: look again around the bar itself

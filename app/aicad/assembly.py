@@ -124,9 +124,12 @@ def survey_page(job, p: Project, idx: int) -> dict:
     for v, b, h in zip(views, snapped, how):
         v["box"], v["how"] = [round(c, 1) for c in b], h
         sheet["views"].append(v)
-    for sb in raw.get("scale_bars") or []:
-        if not isinstance(sb, dict):
-            continue
+    # the longest bar is measured first; feet and metres bars of one sheet must agree, so the
+    # scale of a measured bar guides the choice for the others
+    sbs = [sb for sb in (raw.get("scale_bars") or []) if isinstance(sb, dict)]
+    sbs.sort(key=lambda sb: -vision.dist(_pt(sb.get("p1") or [], W, H) or (0, 0), _pt(sb.get("p2") or [], W, H) or (0, 0)))
+    expect = None
+    for sb in sbs:
         p1, p2 = _pt(sb.get("p1") or [], W, H), _pt(sb.get("p2") or [], W, H)
         L = units.parse_length(f"{sb.get('length')} {sb.get('unit', '')}".replace(" ft", "'").replace(" in", '"'),
                                "mm")
@@ -136,9 +139,10 @@ def survey_page(job, p: Project, idx: int) -> dict:
             try:     # measure the bar itself; the AI's points are only a hint
                 from . import scalebar
                 r = scalebar.refine(job, ask, p.dir / "input", page, p.dir / "assembly" / "crops", p1, p2, L,
-                                    tag=f"{sheet['id']}_bar{len(sheet['scale_bars']) + 1}")
+                                    tag=f"{sheet['id']}_bar{len(sheet['scale_bars']) + 1}", expect=expect)
                 if r:
                     bar.update(r)
+                    expect = expect or r["mm_per_px"]
             except Exception as e:
                 job.log(f"  scale bar could not be measured ({e}); the AI's points are used.", "warn")
             sheet["scale_bars"].append(bar)
