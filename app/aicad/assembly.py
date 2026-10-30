@@ -498,9 +498,17 @@ def make_plan(job, p: Project, sheets, readings, scales, extra) -> dict:
                           _user(PA.plan_user(digest(sheets, readings, scales), extra), [cs])], "code", 12000)
     used = set()
     comps = []
+    names = set()
     for k, c in enumerate(raw.get("components") or []):
         if not isinstance(c, dict):
             continue
+        # the same part listed twice (by name) is modelled once
+        words = re.sub(r"[^a-z0-9]+", " ", str(c.get("name") or c.get("id") or "").lower()).split()
+        key = " ".join(w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w for w in words)
+        if key and key in names:
+            job.log(f"  plan: '{c.get('name')}' is listed twice; modelled once.", "warn")
+            continue
+        names.add(key)
         try:
             mn = [float(x) for x in (c.get("min") or [])[:3]]
             mx = [float(x) for x in (c.get("max") or [])[:3]]

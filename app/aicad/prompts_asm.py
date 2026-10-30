@@ -80,8 +80,11 @@ Answer with ONE JSON object and nothing else:
 }}
 
 Rules:
-- 5 to 30 components. Group repetitive members (all columns of a row, a whole truss, all bracing of a bay) into one
-  component each. Separate parts that differ in kind (foundation, frame, machine, piping, platform).
+- 5 to 30 components, as few as describe the object well (a machine usually needs 6 to 15). Group repetitive members
+  (all columns of a row, a whole truss, all bracing of a bay, all gears of one planetary set) into one component each.
+  Separate parts that differ in kind (foundation, frame, machine, piping, platform).
+- Every part appears once: never list a group and also its own parts, or the same part twice under two names.
+  Leave out fasteners, bolts, seals, gaskets, plugs, vents, gear teeth, splines and oil passages.
 - Sizes come from the readings (already converted to mm where a scale is known). Where a size is not written,
   estimate it from the drawing proportions and say so in the description.
 - Labels come with their position measured on the view (x, u in mm from the lower left corner of the view). Use
