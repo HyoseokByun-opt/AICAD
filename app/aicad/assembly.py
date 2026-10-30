@@ -268,17 +268,68 @@ def _merge_reading(rd, crop, raw, unit):
                                   "p1": p1, "p2": _crop_pt(m.get("p2") or [], crop)})
 
 
-def view_scale(sheet: dict, view: dict, reading: dict | None, calib=None):
+def _box_dist(pt, box):
+    dx = max(box[0] - pt[0], 0, pt[0] - box[2])
+    dy = max(box[1] - pt[1], 0, pt[1] - box[3])
+    return math.hypot(dx, dy)
+
+
+def sheet_scales(sheet: dict, readings: dict, calib=None) -> dict:
+    """mm per page pixel of every view of a sheet, with its source.
+
+    A measured scale bar serves the view it is drawn with (the nearest one);
+    a view without a bar takes the scale of its own dimensions, or else the
+    ratio of its scale note to that of a view with a bar (a sheet with a
+    3/8" = 1'-0" section and a 1/16" = 1'-0" key plan has two scales)."""
+    from . import units as U
+    out = {}
+    views = sheet.get("views") or []
+    if calib and calib.get("mm_per_px"):
+        return {v["id"]: (calib["mm_per_px"], "user calibration") for v in views}
+    bars = [b for b in (sheet.get("scale_bars") or []) if b.get("mm_per_px")]
+    owner = {}
+    for b in bars:
+        c = ((b["p1"][0] + b["p2"][0]) / 2, (b["p1"][1] + b["p2"][1]) / 2)
+        if views:
+            v = min(views, key=lambda v: _box_dist(c, v["box"]))
+            owner.setdefault(v["id"], []).append(b)
+    for v in views:
+        if owner.get(v["id"]):
+            out[v["id"]] = (statistics.median(b["mm_per_px"] for b in owner[v["id"]]), "graphic scale bar")
+    for v in views:
+        if v["id"] in out:
+            continue
+        sc, src = view_scale(sheet, v, readings.get(v["id"]), None, bars=False)
+        if sc:
+            out[v["id"]] = (sc, src)
+            continue
+        # scale-note ratio to a view whose scale is known
+        fv = U.scale_factor(v.get("scale_text") or "")
+        if fv:
+            for w in views:
+                fw = U.scale_factor(w.get("scale_text") or sheet.get("scale_text") or "")
+                if w["id"] in out and fw:
+                    out[v["id"]] = (out[w["id"]][0] * fv / fw, f"scale note {v['scale_text']} against {w['id']}")
+                    break
+        if v["id"] not in out and bars and len(views) == 1:
+            out[v["id"]] = (bars[0]["mm_per_px"], "graphic scale bar")
+        if v["id"] not in out and bars and not v.get("scale_text"):
+            # no note of its own: the sheet's scale (the nearest bar)
+            c = ((v["box"][0] + v["box"][2]) / 2, (v["box"][1] + v["box"][3]) / 2)
+            b = min(bars, key=lambda b: vision.dist(((b["p1"][0] + b["p2"][0]) / 2, (b["p1"][1] + b["p2"][1]) / 2), c))
+            out[v["id"]] = (b["mm_per_px"], "graphic scale bar of the sheet")
+        out.setdefault(v["id"], (None, None))
+    return out
+
+
+def view_scale(sheet: dict, view: dict, reading: dict | None, calib=None, bars=True):
     """mm per page pixel of a view and where it comes from."""
     if calib and calib.get("mm_per_px"):
         return calib["mm_per_px"], "user calibration"
-    bars = sheet.get("scale_bars") or []
-    if bars:
-        own = [b for b in bars if b.get("view") and str(b["view"]).upper() in view["id"]]
-        if not own:
-            cx, cy = (view["box"][0] + view["box"][2]) / 2, (view["box"][1] + view["box"][3]) / 2
-            own = [min(bars, key=lambda b: vision.dist(((b["p1"][0] + b["p2"][0]) / 2, (b["p1"][1] + b["p2"][1]) / 2), (cx, cy)))]
-        return own[0]["mm_per_px"], "graphic scale bar"
+    if bars and sheet.get("scale_bars"):
+        sc = sheet_scales(sheet, {view["id"]: reading} if reading else {}).get(view["id"])
+        if sc and sc[0]:
+            return sc
     cands = []
     for d in (reading or {}).get("dimensions", []):
         if d.get("mm") and d.get("p1") and d.get("p2"):
@@ -560,11 +611,10 @@ def job_generate_assembly(job, pid: str, text: str = "", pages=None, reread=True
         scales = {}
         calib = p.data.get("calib") or {}
         for sh in sheets:
-            for v in sh["views"]:
-                sc, src = view_scale(sh, v, readings.get(v["id"]), calib.get(sh["file"]))
-                scales[v["id"]] = (sc, src)
+            for vid, (sc, src) in sheet_scales(sh, readings, calib.get(sh["file"])).items():
+                scales[vid] = (sc, src)
                 if sc:
-                    job.log(f"  scale {v['id']}: {sc:.4g} mm/px from the {src}.")
+                    job.log(f"  scale {vid}: {sc:.4g} mm/px from the {src}.")
         p.write_json("assembly/scales.json", {k: list(v) for k, v in scales.items()})
     job.check()
     job.set("Planning the components", 0.47)

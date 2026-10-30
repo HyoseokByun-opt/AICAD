@@ -127,6 +127,8 @@ def main():
 
         # -------------------------------------------------------- references
         for ex in ex_index:
+            if not ex.get("reference"):
+                continue      # a real drawing set without a reference model
             def ref(ex=ex):
                 code = (paths.EXAMPLES_DIR / ex["reference"]).read_text(encoding="utf-8")
                 r = w.build(code, tmp / ("r_" + ex["id"]), name=ex["id"])

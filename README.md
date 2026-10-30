@@ -78,6 +78,40 @@ The main capabilities are listed below.
   see-through styles, a section plane with coloured cut faces, face picking (plane normal, cylinder diameter and
   axis, cone angle, area), point-to-point measurement, overall dimensions and the six standard views.
 
+## Large objects and drawing sets
+
+Plant structures, steel frameworks, machines and equipment are usually drawn on several sheets, often as old prints,
+scans or photographs, in feet and inches, with graphic scales instead of dimensions. A single prompt cannot hold
+such a set and a single script for hundreds of members fails as a whole, so AICAD models large objects in steps
+that each fit the model and fail on their own:
+
+<p align="center">
+  <img src="docs/images/ui_turbine.png" alt="Layout model of a turbine and generator unit" width="49%">
+  <img src="docs/images/ui_truss.png" alt="Assembly of a steel deck truss with its component panel" width="49%">
+</p>
+
+1. **Survey.** Every sheet is described at overview resolution: title, kind, units, views with their captions and
+   levels, tables, scale notes and graphic scale bars.
+2. **Zoomed reading.** Every main view is read again from the original file (a re-render of the PDF page or the
+   full-resolution scan of up to 280 megapixels); a view drawn large is read in up to six overlapping tiles and the
+   answers are merged. Dimensions, levels, grid lines, labels and member marks are converted to millimetres
+   (feet-inches with fractions, inches, metres).
+3. **Scale per view.** A graphic scale bar is found and measured by image analysis near the place the AI points to;
+   the AI only reads its labels. A view without a bar takes the scale of the dimensions read in it (written value
+   divided by the measured length, outliers removed) or the ratio of its scale note to that of a view with a bar.
+4. **Plan.** The object is broken into 5 to 30 components (foundation, frames, machines, vessels, piping, platforms)
+   with bounding boxes in one global coordinate system.
+5. **Components.** One script per component, written with the modelling library and corrected on its own. A
+   component that still fails becomes a see-through placeholder at its planned place; the rest is kept.
+6. **Assembly.** One script with a builder function per component gives one version: a STEP assembly with named,
+   coloured components. A component can be redone later, with an instruction, without reading the drawings again.
+
+The **modelling library** (`aicad_lib`) gives the AI building blocks that keep large structures short and robust:
+steel members and frames from node lists (HEB/HEA/IPE/UPN, H/I/C/L by size, US W shapes and inch angles, pipes,
+hollow sections), plan and section outlines extruded between elevations, revolved half sections, grating, stairs,
+ladders and handrails, pipes, flanges and nozzles, vessels with 2:1, hemispherical or conical heads, spiral casings,
+circle-to-rectangle transitions (draft tubes, ducts, hoppers), blade rows, bolt circles and patterns.
+
 ## Workflow
 
 <p align="center">
@@ -144,6 +178,8 @@ wheels and the llama.cpp builds into the folder; continue with step 2.
 |---|---|
 | Model from a drawing | Import the drawing → **Generate** |
 | Model from words | Type the description on the Home tab → **Generate** |
+| Plant, structure, machine, several sheets | Import all sheets → Object: *Assembly / structure* (automatic for several sheets) → **Generate** |
+| Redo one component | Parts / Components → *Redo* (optionally with an instruction) |
 | Check what was read | **Dimensions** tab: every value, its source and the open questions |
 | Fix a wrong view box or the scale | **Drawing** tab → *Edit view boxes*, *Calibrate scale* |
 | Rebuild from corrected values | Dimensions tab → *Build model from these values* |
@@ -153,18 +189,33 @@ wheels and the llama.cpp builds into the folder; continue with step 2.
 | Measure the model | 3D toolbar → *Measure*; click a face for its geometry |
 | Export | Export tab → STEP, STL, glTF, BREP, DXF, code |
 
-Six examples are included (Home → Examples): a base plate (raster drawing), a pipe flange (vector PDF), an L bracket
-whose wall thickness is not dimensioned, a pump skid assembly (DXF), and two descriptions (a vertical vessel and a
-stepped shaft). Each comes with a hand-made reference model.
+Nine examples are included (Home → Examples). Six are synthetic drawings with known answers: a base plate (raster),
+a pipe flange (vector PDF), an L bracket whose wall thickness is not dimensioned, a pump skid assembly (DXF), and two
+descriptions (a vertical vessel and a stepped shaft). Three are real drawings from the Historic American Engineering
+Record (public domain, Library of Congress): the 1925 turbine and generator unit of Wilson Dam (a half section
+without any dimensions, two scales on one sheet), a photographed 1934 erection plan of a steel deck truss, and three
+21 600 x 13 000 px sheets of a nuclear power plant turbine building. The first two come with a reference layout
+model built with the modelling library.
 
 ## Verification
 
 `app/selftest.py` checks the parts that do not depend on the AI against known answers: the kernel, the code safety
-check and error lines, the STEP round trip (identical volume after re-import, part name kept), PDF, DXF and image
+check and error lines, lengths written in feet-inches and metric, the 30 building blocks of the modelling library, the STEP round trip (identical volume after re-import, part name kept), PDF, DXF and image
 import (exact texts and dimension values), all example references, the scale derived from the views (within 2 % of
 the true scale), a size that is not dimensioned measured by ratio (L bracket wall: 10 mm), the outline comparison of
 drawing and model, and every export format. `tools/eval_examples.py` runs all examples through the complete AI
 pipeline on the GPU PC and reports the size and volume error of each result against its reference.
+
+The real drawings were used to test the steps that do not depend on the size of the model:
+
+| Check on real drawings | Result |
+|---|---|
+| Import of eight HAER sheets (1-bit TIFF up to 21 634 x 13 056 px, photographed prints) | all imported, under 1 s each |
+| Scale bar of the Wilson Dam sheet, measured (AI: labels only) | 5.962 mm/px (feet bar and metre bar agree within 0.2 %) |
+| Second scale on the same sheet (1/16" = 1'-0" key plan) | 35.76 mm/px from the ratio of the scale notes |
+| Survey of the Wilson Dam sheet with Qwen3.5-9B on a CPU | title, units (ft-in), both views snapped to their outlines, both scale notes |
+| Assembly pipeline on the truss sheet with recorded AI answers | 6 components, 125 members, correction and placeholder work, STEP assembly |
+| Reference layout model of the turbine unit (library) | 9 components, 112 solids, built in 18 s |
 
 The accuracy of the AI depends on the model and on the drawing. Results are to be checked on the Dimensions and
 Compare tabs before use; values marked *ratio* or *assumed* deserve particular attention. A drawing that is not to
@@ -173,11 +224,12 @@ scale (NTS) makes measured sizes meaningless; the program warns when the views g
 ## Project layout
 
 ```
-app/aicad/      ingest (PDF, image, DXF) · vision (view boxes, outlines) · spec (scale and ratio sizes)
-                llm (llama.cpp engine) · prompts · pipeline · cadexec (kernel worker) · params · project
+app/aicad/      ingest (PDF, image, DXF) · vision (view boxes, outlines, zoomed crops) · spec (scale, ratio sizes)
+                units (feet-inches) · scalebar · llm (llama.cpp engine) · prompts · pipeline (single parts)
+                assembly (sheets, components) · lib (modelling library) · cadexec (kernel worker) · params · project
 app/web/        Flask server, user interface (three.js viewer, drawing viewer)
 examples/       example drawings with reference models
-tools/          get_model, build_offline, make_examples, eval_examples, make_release
+tools/          get_model, build_offline, make_examples, eval_examples, survey_test, replay_assembly_test, make_release
 ```
 
 ## Open-source components
