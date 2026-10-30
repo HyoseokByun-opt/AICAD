@@ -47,9 +47,19 @@ def ftin(text) -> float:
 
 
 # =================================================================== vectors
+_DIRS = {"x": (1, 0, 0), "+x": (1, 0, 0), "-x": (-1, 0, 0), "y": (0, 1, 0), "+y": (0, 1, 0), "-y": (0, -1, 0),
+         "z": (0, 0, 1), "+z": (0, 0, 1), "-z": (0, 0, -1), "up": (0, 0, 1), "down": (0, 0, -1),
+         "east": (1, 0, 0), "west": (-1, 0, 0), "north": (0, 1, 0), "south": (0, -1, 0)}
+
+
 def _v(p):
+    """A point or direction: (x, y, z), (x, y), a Vector, or a direction word ('up', '-x', 'north', ...)."""
     if isinstance(p, cq.Vector):
         return p
+    if isinstance(p, str):
+        if p.strip().lower() not in _DIRS:
+            raise ValueError(f"unknown direction '{p}': give (x, y, z) or one of {', '.join(sorted(_DIRS))}")
+        return cq.Vector(*_DIRS[p.strip().lower()])
     return cq.Vector(float(p[0]), float(p[1]), float(p[2]) if len(p) > 2 else 0.0)
 
 
