@@ -268,5 +268,34 @@
   "source": "Historic American Engineering Record (HAER), National Park Service; Library of Congress, Prints & Photographs Division. Public domain (no known restrictions), via Wikimedia Commons.",
   "thumb": "turbine_building/thumb.png",
   "mode": "assembly"
+ },
+ {
+  "id": "engine_room",
+  "title": "Ship engine room, plan and section (hard)",
+  "description": "Real drawing set, HAER CA-337 (tanker Mission Santa Ynez): plan and longitudinal section of the aft engine and pump rooms - about forty machines on two levels and the shaft line; the plan is drawn with the frames running the other way than in the section. Graphic scale in feet and metres.",
+  "drawing": "engine_room/engine_room_section.tif",
+  "drawings": [
+   "engine_room/engine_room_section.tif",
+   "engine_room/engine_room_plan.tif"
+  ],
+  "text": "Layout model of the engine room and pump room machinery: main propulsion motor and shaft line, main condenser, boiler, turbo-generators, main cargo pumps, the larger auxiliary pumps and tanks, and the flats they stand on.",
+  "hard": true,
+  "mode": "assembly",
+  "source": "Historic American Engineering Record (HAER), National Park Service; Library of Congress, Prints & Photographs Division. Public domain (no known restrictions), via Wikimedia Commons.",
+  "thumb": "engine_room/thumb.png"
+ },
+ {
+  "id": "pumping_engine",
+  "title": "Pumping engine, book illustration (hard)",
+  "description": "Real drawing, Holly high-duty pumping engine (New Catechism of the Steam Engine, 1904): one sectional elevation without dimensions or scale; the flywheel runs off the top of the picture. One size is given in words, everything else follows from the proportions.",
+  "drawing": "pumping_engine/holly_pumping_engine_section.jpg",
+  "drawings": [
+   "pumping_engine/holly_pumping_engine_section.jpg"
+  ],
+  "text": "Layout model of the pumping engine: steam cylinders, frame and crank, flywheel, pump cylinders, air vessel and the masonry foundation. The foundation is 12 m long; take every other size from the proportions of the drawing. The engine is about as deep as the flywheel diameter.",
+  "hard": true,
+  "mode": "assembly",
+  "source": "Hawkins, New Catechism of the Steam Engine (1904). Public domain (published before 1929), via Wikimedia Commons.",
+  "thumb": "pumping_engine/thumb.png"
  }
 ]

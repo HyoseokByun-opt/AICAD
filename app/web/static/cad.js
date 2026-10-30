@@ -311,6 +311,26 @@
     };
   }
 
+  const NAMES = [...Object.keys(C), "undo", "redo"];
+  function matches(text) {
+    const w = text.trim().toLowerCase();
+    if (!w || /\s/.test(text.trimStart())) return [];
+    const full = ALIAS[w] ? [ALIAS[w]] : [];
+    return [...new Set([...full, ...NAMES.filter((n) => n.startsWith(w))])];
+  }
+  function suggest() {
+    if (cur) return;
+    const inp = $("#cmdInput");
+    const m = matches(inp.value);
+    if (!inp.value.trim()) { idle(); return; }
+    if (m.length) {
+      const d = C[m[0]];
+      $("#cmdHint").textContent = `${m.join(" · ")}   Tab completes` + (d && d.extra ? `   ${d.extra}` : "");
+    } else if (!/\s/.test(inp.value.trim())) {
+      $("#cmdHint").textContent = "no such command";
+    }
+  }
+
   // ------------------------------------------------------------- init
   function init(c) {
     ctx = c;
@@ -320,7 +340,13 @@
       else if (e.key === "Escape") { e.preventDefault(); inp.value = ""; cancel(); }
       else if (e.key === "ArrowUp" && !cur) { if (hpos > 0) inp.value = hist[--hpos]; e.preventDefault(); }
       else if (e.key === "ArrowDown" && !cur) { if (hpos < hist.length - 1) inp.value = hist[++hpos]; else { hpos = hist.length; inp.value = ""; } e.preventDefault(); }
+      else if (e.key === "Tab" && !cur) {
+        const m = matches(inp.value);
+        if (m.length) { e.preventDefault(); inp.value = m[0] + " "; suggest(); }
+      }
     });
+    // while a command name is typed, the matching commands are offered; Tab completes the first
+    inp.addEventListener("input", suggest);
     // typing anywhere (outside fields) goes to the command line; Ctrl+Z / Ctrl+Y step versions
     window.addEventListener("keydown", (e) => {
       const tag = (document.activeElement && document.activeElement.tagName) || "";

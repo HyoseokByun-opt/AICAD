@@ -614,6 +614,26 @@ HARD = [
                ("turbine_building/plan_operating_floor_s9.tif", "plan_operating_floor_s9.tif", None)],
      "reference": False, "text": "Layout model of the turbine-generator support (pedestal), the machines on it and "
                                  "the operating floor."},
+    {"id": "engine_room", "title": "Ship engine room, plan and section (hard)",
+     "description": "Real drawing set, HAER CA-337 (tanker Mission Santa Ynez): plan and longitudinal section of the "
+                    "aft engine and pump rooms - about forty machines on two levels and the shaft line; the plan is "
+                    "drawn with the frames running the other way than in the section. Graphic scale in feet and metres.",
+     "files": [("engine_room/engine_room_section.tif", "engine_room_section.tif", None),
+               ("engine_room/engine_room_plan.tif", "engine_room_plan.tif", None)],
+     "reference": False, "text": "Layout model of the engine room and pump room machinery: main propulsion motor and "
+                                 "shaft line, main condenser, boiler, turbo-generators, main cargo pumps, the larger "
+                                 "auxiliary pumps and tanks, and the flats they stand on."},
+    {"id": "pumping_engine", "title": "Pumping engine, book illustration (hard)",
+     "description": "Real drawing, Holly high-duty pumping engine (New Catechism of the Steam Engine, 1904): one "
+                    "sectional elevation without dimensions or scale; the flywheel runs off the top of the picture. "
+                    "One size is given in words, everything else follows from the proportions.",
+     "files": [("pumping_engine/holly_pumping_engine_section.jpg", "holly_pumping_engine_section.jpg", None)],
+     "reference": False,
+     "source": "Hawkins, New Catechism of the Steam Engine (1904). Public domain (published before 1929), via "
+               "Wikimedia Commons.",
+     "text": "Layout model of the pumping engine: steam cylinders, frame and crank, flywheel, pump cylinders, air "
+             "vessel and the masonry foundation. The foundation is 12 m long; take every other size from the "
+             "proportions of the drawing. The engine is about as deep as the flywheel diameter."},
 ]
 
 
@@ -641,9 +661,10 @@ def hard_examples(w):
         if not names:
             print(f"{ex['id']:15s} skipped (drawing not found)")
             continue
-        (d / "SOURCE.txt").write_text(HAER + "\n", encoding="utf-8")
+        src_note = ex.get("source", HAER)
+        (d / "SOURCE.txt").write_text(src_note + "\n", encoding="utf-8")
         entry = {"id": ex["id"], "title": ex["title"], "description": ex["description"], "drawing": names[0],
-                 "drawings": names, "text": ex["text"], "hard": True, "mode": "assembly", "source": HAER}
+                 "drawings": names, "text": ex["text"], "hard": True, "mode": "assembly", "source": src_note}
         ref = d / "reference.py"
         if ex["reference"] and ref.exists():
             build = d / "_build"

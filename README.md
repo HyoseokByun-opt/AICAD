@@ -229,12 +229,14 @@ wheels and the llama.cpp builds into the folder; continue with step 2.
 | Measure the model | 3D toolbar → *Measure*; click a face for its geometry |
 | Export | Export tab → STEP, STL, glTF, BREP, DXF, code |
 
-Nine examples are included (Home → Examples). Six are synthetic drawings with known answers: a base plate (raster),
+Eleven examples are included (Home → Examples). Six are synthetic drawings with known answers: a base plate (raster),
 a pipe flange (vector PDF), an L bracket whose wall thickness is not dimensioned, a pump skid assembly (DXF), and two
-descriptions (a vertical vessel and a stepped shaft). Three are real drawings from the Historic American Engineering
-Record (public domain, Library of Congress): the 1925 turbine and generator unit of Wilson Dam (a half section
-without any dimensions, two scales on one sheet), a photographed 1934 erection plan of a steel deck truss, and three
-21 600 x 13 000 px sheets of a nuclear power plant turbine building. The first two come with a reference layout
+descriptions (a vertical vessel and a stepped shaft). Five are real drawings in the public domain. Four come from the
+Historic American Engineering Record (Library of Congress): the 1925 turbine and generator unit of Wilson Dam (a half
+section without any dimensions, two scales on one sheet), a photographed 1934 erection plan of a steel deck truss,
+three 21 600 x 13 000 px sheets of a nuclear power plant turbine building, and the plan and section of a tanker's
+engine room with about forty machines. The fifth is a 1904 book illustration of a steam pumping engine without any
+dimension or scale, where one size is given in words. The turbine unit and the truss come with a reference layout
 model built with the modelling library.
 
 ## Verification
