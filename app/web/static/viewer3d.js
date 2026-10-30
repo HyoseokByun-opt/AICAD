@@ -175,9 +175,10 @@ class Viewer {
       const m = p.mesh.material;
       p.mesh.visible = p.visible && style !== "wire";
       p.edges.visible = p.visible && style !== "shaded";
-      m.transparent = style === "xray";
-      m.opacity = style === "xray" ? 0.22 : 1;
-      m.depthWrite = style !== "xray";
+      const see = style === "xray" || p.ghost;
+      m.transparent = see;
+      m.opacity = style === "xray" ? 0.22 : p.ghost ? 0.28 : 1;
+      m.depthWrite = !see;
       p.edges.material.color.set(style === "xray" ? 0x24292f : 0x1b1f24);
       p.edges.material.opacity = 1;
       m.needsUpdate = true;
@@ -190,6 +191,14 @@ class Viewer {
     const p = this.parts[i];
     if (!p) return;
     p.visible = v;
+    this.setStyle(this.style);
+  }
+
+  /* a placeholder (component not modelled) is drawn see-through */
+  setPartGhost(i, on) {
+    const p = this.parts[i];
+    if (!p) return;
+    p.ghost = on;
     this.setStyle(this.style);
   }
 

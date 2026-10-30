@@ -11,7 +11,7 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request, send_file
 
-from aicad import __version__, APP_FULL, APP_NAME, catalog, jobs, llm, params, paths, pipeline
+from aicad import __version__, APP_FULL, APP_NAME, assembly, catalog, jobs, llm, params, paths, pipeline
 from aicad import spec as specmod
 from aicad.cadexec import worker
 from aicad.ingest import SUPPORTED, IngestError, ingest
@@ -138,6 +138,14 @@ def _proj_payload(p: Project):
     d["params"] = params.parse(d["code"]) if d["code"] else []
     d["compare"] = p.read_json(f"versions/{cur}/compare.json") if cur else None
     d["views"] = p.read_json(f"versions/{cur}/views.json") if cur else None
+    plan = p.read_json("assembly/plan.json")
+    if plan:
+        d["assembly"] = {"plan": plan, "status": p.read_json("assembly/status.json") or {},
+                         "sheets": p.read_json("assembly/sheets.json") or [],
+                         "scales": p.read_json("assembly/scales.json") or {}}
+    elif p.read_json("assembly/sheets.json"):
+        d["assembly"] = {"plan": None, "status": {}, "sheets": p.read_json("assembly/sheets.json") or [],
+                         "scales": p.read_json("assembly/scales.json") or {}}
     return d
 
 
@@ -337,6 +345,37 @@ def refine(pid):
     return _start_ai("refine", pid, pipeline.job_refine)
 
 
+@app.post("/api/projects/<pid>/assembly")
+def assembly_generate(pid):
+    """Multi-sheet set / large object: survey, read, plan, model per component."""
+    p = _project(pid)
+    if not p.data.get("pages"):
+        return _err("Import the drawing sheets first.")
+    body = request.get_json(silent=True) or {}
+    return _start_ai("assembly", pid, assembly.job_generate_assembly, text=str(body.get("text", ""))[:8000],
+                     pages=body.get("pages") or None)
+
+
+@app.post("/api/projects/<pid>/replan")
+def assembly_replan(pid):
+    p = _project(pid)
+    if not p.read_json("assembly/sheets.json"):
+        return _err("The sheets have not been read yet.")
+    body = request.get_json(silent=True) or {}
+    return _start_ai("replan", pid, assembly.job_replan, text=str(body.get("text", p.data.get("request", "")))[:8000])
+
+
+@app.post("/api/projects/<pid>/component")
+def assembly_component(pid):
+    _project(pid)
+    body = request.get_json(force=True) or {}
+    cid = str(body.get("cid", ""))
+    if not cid:
+        return _err("No component given.")
+    return _start_ai("component", pid, assembly.job_component, cid=cid,
+                     instruction=str(body.get("instruction", ""))[:4000])
+
+
 @app.post("/api/projects/<pid>/build")
 def build(pid):
     p = _project(pid)
@@ -446,8 +485,8 @@ def example_open():
     except (OSError, ValueError, StopIteration):
         return _err("unknown example")
     p = Project.create(ex["title"])
-    if ex.get("drawing"):
-        src = paths.EXAMPLES_DIR / ex["drawing"]
+    for rel in ex.get("drawings") or ([ex["drawing"]] if ex.get("drawing") else []):
+        src = paths.EXAMPLES_DIR / rel
         dst = p.dir / "input" / src.name
         shutil.copyfile(src, dst)
         try:
@@ -455,8 +494,12 @@ def example_open():
             p.add_pages(dst.name, pages)
         except IngestError as e:
             return _err(str(e))
+    if p.data.get("pages"):
+        p.data["page"] = 0
     p.data["request"] = ex.get("text", "")
     p.data["example"] = ex["id"]
+    if ex.get("mode"):
+        p.data["mode"] = ex["mode"]
     p.save()
     out = _proj_payload(p)
     if body.get("with_reference") and ex.get("reference"):

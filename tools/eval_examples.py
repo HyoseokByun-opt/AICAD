@@ -69,24 +69,33 @@ def main():
     for e in ex:
         print(f"\n== {e['title']}")
         p = Project.create("eval " + e["id"])
-        if e.get("drawing"):
-            src = paths.EXAMPLES_DIR / e["drawing"]
+        for rel in e.get("drawings") or ([e["drawing"]] if e.get("drawing") else []):
+            src = paths.EXAMPLES_DIR / rel
             dst = p.dir / "input" / src.name
             shutil.copyfile(src, dst)
-            p.add_pages(dst.name, ingest(dst, p.dir / "input", dst.stem))
+            p.add_pages(dst.name, ingest(dst, p.dir / "input", dst.stem[:40]))
         job = Job()
         t0 = time.time()
         err = ""
         try:
-            pipeline.job_generate(job, p.id, "drawing" if e.get("drawing") else "text", e.get("text", ""))
+            if e.get("mode") == "assembly":
+                from aicad import assembly
+                assembly.job_generate_assembly(job, p.id, e.get("text", ""))
+            else:
+                pipeline.job_generate(job, p.id, "drawing" if e.get("drawing") else "text", e.get("text", ""))
         except Exception as x:  # noqa: BLE001
             err = str(x)
         p = Project(p.id)
         v = p.version()
-        t = e["truth"]
+        t = e.get("truth") or {}
         row = {"id": e["id"], "seconds": round(time.time() - t0, 1), "builds": len(p.data["versions"]),
                "ok": bool(v and v.get("ok")), "error": err}
-        if row["ok"]:
+        st = p.read_json("assembly/status.json")
+        if st:
+            row["components"] = f"{sum(1 for x in st.values() if x.get('ok'))}/{len(st)}"
+        if row["ok"] and not t:
+            row.update(size=v["metrics"]["size"], size_err=[None, None, None], volume_err=0.0, solids=v["metrics"]["solids"])
+        elif row["ok"]:
             m = v["metrics"]
             row["size"] = m["size"]
             row["size_err"] = [round(mv / tv - 1, 4) if tv else None for mv, tv in zip(m["size"], t["size"])]
@@ -99,7 +108,7 @@ def main():
     print("\nexample            ok  builds  time(s)  max size err  volume err  drawing score")
     for r in rows:
         if r["ok"]:
-            mse = max(abs(x) for x in r["size_err"] if x is not None)
+            mse = max([abs(x) for x in r["size_err"] if x is not None] or [0.0])
             sc = "" if r.get("score") is None else "%.0f %%" % (r["score"] * 100)
             print(f"{r['id']:18s} yes {r['builds']:6d} {r['seconds']:8.0f}  {mse * 100:10.1f} %  "
                   f"{r['volume_err'] * 100:8.1f} %  {sc}")

@@ -28,7 +28,7 @@ from pathlib import Path
 
 # --------------------------------------------------------------- code check
 ALLOWED_ROOTS = {"cadquery", "math", "numpy", "typing", "itertools", "functools",
-                 "collections", "dataclasses", "OCP"}
+                 "collections", "dataclasses", "OCP", "aicad_lib"}
 BLOCKED_CALLS = {"open", "exec", "eval", "compile", "__import__", "input", "globals",
                  "locals", "vars", "breakpoint", "help", "exit", "quit", "getattr",
                  "setattr", "delattr"}
@@ -154,6 +154,12 @@ def _w_import():
 
     cq.Color.__init__ = _color_init
 
+    # the modelling library, importable as aicad_lib and present as `lib`
+    global LIB
+    import sys
+    from aicad import lib as LIB
+    sys.modules["aicad_lib"] = LIB
+
 
 def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     if level or name.split(".")[0] not in ALLOWED_ROOTS:
@@ -175,7 +181,8 @@ def _exec(code: str):
             color = options.get("color")
         shown.append((obj, name, color))
 
-    ns = {"__builtins__": b, "__name__": "__aicad__", "cq": cq, "math": math, "np": np,
+    LIB.FAILED.clear()
+    ns = {"__builtins__": b, "__name__": "__aicad__", "cq": cq, "math": math, "np": np, "lib": LIB,
           "show_object": show_object, "debug": lambda *a, **k: None}
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
@@ -378,19 +385,33 @@ def _mesh_part(shape, lin, ang):
     return np.asarray(pos, dtype=float).reshape(-1, 3), np.asarray(idx, dtype=np.int64).reshape(-1, 3), faces, edges
 
 
-def _hlr(shape, view, defl):
-    """Hidden-line projection of a shape: lists of 2D polylines (mm)."""
+def _hlr(shape, view, defl, poly=False):
+    """Hidden-line projection of a shape: lists of 2D polylines (mm).
+
+    The exact algorithm works on the B-rep surfaces and is precise but slow
+    on large models with free-form surfaces (minutes for a turbine with a
+    lofted casing and blade rows); the polygonal one works on the existing
+    tessellation and takes seconds. Large models use the polygonal one."""
     from OCP.BRepLib import BRepLib
     from OCP.HLRAlgo import HLRAlgo_Projector
-    from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
+    from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape, HLRBRep_PolyAlgo, HLRBRep_PolyHLRToShape
     from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
     n, r, _ = view_frame(view)
-    algo = HLRBRep_Algo()
-    algo.Add(shape.wrapped)
-    algo.Projector(HLRAlgo_Projector(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(*n), gp_Dir(*r))))
-    algo.Update()
-    algo.Hide()
-    h = HLRBRep_HLRToShape(algo)
+    proj = HLRAlgo_Projector(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(*n), gp_Dir(*r)))
+    if poly:
+        algo = HLRBRep_PolyAlgo()
+        algo.Load(shape.wrapped)
+        algo.Projector(proj)
+        algo.Update()
+        h = HLRBRep_PolyHLRToShape()
+        h.Update(algo)
+    else:
+        algo = HLRBRep_Algo()
+        algo.Add(shape.wrapped)
+        algo.Projector(proj)
+        algo.Update()
+        algo.Hide()
+        h = HLRBRep_HLRToShape(algo)
     groups = {"v": [h.VCompound(), h.Rg1LineVCompound(), h.OutLineVCompound()],
               "h": [h.HCompound(), h.OutLineHCompound()]}
     out = {"v": [], "h": []}
@@ -530,6 +551,10 @@ def _build(req):
     except Exception as e:
         res["error"] = "The result could not be read: " + _fmt_exc(e)
         return res
+    if LIB.FAILED:
+        res["failed_components"] = list(LIB.FAILED)
+        for f in LIB.FAILED:
+            res["warnings"].append(f"Component '{f['id']}' ({f['title']}) failed and is left out: {f['error']}")
     if not parts:
         res["error"] = ("The code ran but produced no shape. Assign the final solid to a variable "
                         "named `result` (or an assembly to `assembly`).")
@@ -540,7 +565,13 @@ def _build(req):
     for p in parts:
         shp = p["shape"]
         try:
-            if not shp.isValid():
+            sols0 = shp.Solids()
+            if len(sols0) > 1 and isinstance(shp, cq.Compound):
+                # a compound of members that cross is fine; each solid must be valid
+                bad = sum(1 for s in sols0 if not s.isValid())
+                if bad:
+                    res["warnings"].append(f"{p['name']}: the kernel reports {bad} of {len(sols0)} solids as invalid.")
+            elif not shp.isValid():
                 fixed = shp.fix()
                 if fixed.isValid():
                     p["shape"] = shp = fixed
@@ -578,6 +609,8 @@ def _build(req):
     if vol <= 0:
         res["warnings"].append("The total volume is zero or negative: a face orientation is probably reversed.")
 
+    timing = res.setdefault("timing", {})
+    timing["code"] = round(time.time() - t0, 2)
     # ---------------------------------------------------- STEP
     if req.get("step", True):
         try:
@@ -585,6 +618,7 @@ def _build(req):
         except Exception as e:
             res["warnings"].append("STEP export failed: " + _fmt_exc(e))
 
+    timing["step"] = round(time.time() - t0 - sum(timing.values()), 2)
     # ---------------------------------------------------- mesh
     fl, ang = MESH_QUALITY.get(req.get("quality", "standard"), MESH_QUALITY["standard"])
     lin = max(diag * fl, 1e-3)
@@ -609,17 +643,25 @@ def _build(req):
     P = np.vstack(allp) if allp else np.zeros((0, 3))
     T = np.vstack(allt) if allt else np.zeros((0, 3), dtype=np.int64)
 
+    timing["mesh"] = round(time.time() - t0 - sum(timing.values()), 2)
     # ---------------------------------------------------- projections
     views = req.get("views") or ["front", "top", "right", "iso"]
     vj = {}
-    big = res["metrics"]["faces"] > int(req.get("hlr_face_limit", 3000))
+    nf = res["metrics"]["faces"]
+    big = nf > int(req.get("hlr_face_limit", 20000))
+    # exact hidden lines for parts; the polygonal algorithm for large models
+    # and for free-form surfaces (seconds instead of minutes)
+    nfree = sum(1 for p in mesh_parts for f in p["faces"] if f["t"] in ("BSPLINE", "BEZIER", "OFFSET", "OTHER"))
+    poly = nf > int(req.get("hlr_exact_faces", 600)) or nfree > 40
+    if poly:
+        res["hlr_mode"] = "polygonal"
     for v in views:
         if v not in VIEWS:
             continue
         entry = {}
         try:
             if req.get("hlr", True) and not big:
-                polys = _hlr(comp, v, max(diag * 0.001, 1e-3))
+                polys = _hlr(comp, v, max(diag * 0.001, 1e-3), poly=poly)
                 entry = {"v": polys["v"], "h": polys["h"], "bounds": _bounds2d(polys)}
                 if req.get("png", True):
                     _draw_view_png(polys, out / f"view_{v}.png")
@@ -634,6 +676,7 @@ def _build(req):
     if big:
         res["warnings"].append("Hidden-line views were skipped for this large model (more faces than the limit).")
     (out / "views.json").write_text(json.dumps(vj, separators=(",", ":")))
+    timing["views"] = round(time.time() - t0 - sum(timing.values()), 2)
     res["ok"] = True
     res["seconds"] = round(time.time() - t0, 2)
     (out / "build.json").write_text(json.dumps(res, indent=1))

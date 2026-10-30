@@ -327,6 +327,14 @@
     if (!P() && !text) { toast("Import a drawing or describe the object first."); setTab("home"); return; }
     await ensureProject(text.slice(0, 40) || "Untitled");
     const pages = P().pages.length;
+    // large objects: several sheets, or chosen explicitly -> component pipeline
+    const obj = S.objMode || "auto";
+    if (!forceMode && pages && (obj === "assembly" || (obj === "auto" && (pages > 1 || P().mode === "assembly")))) {
+      startJob(api("POST", `/api/projects/${P().id}/assembly`, { text }),
+        `Modelling a large object from ${pages} sheet(s): survey, zoomed reading, component plan, components`);
+      setDock("ai");
+      return;
+    }
     let mode = forceMode || (pages ? "drawing" : "text");
     if (mode === "text" && !text) { toast("Import a drawing or describe the object first."); return; }
     const lab = mode === "drawing" ? "Generating the 3D model from the drawing" + (text ? " and the description" : "")
@@ -447,6 +455,12 @@
     h += sec("Description and instructions", "describe", `
       <textarea id="reqText" rows="6" placeholder="Describe the object, or add what the drawing lacks.&#10;Example: Base frame for a pump, 1200 x 600 mm, made of 100 mm channels, four anchor holes of 22 mm, a 20 mm top plate.">${esc(p ? p.request || "" : "")}</textarea>
       <div class="desc">${pages ? "With a drawing, this text is passed on as additional instructions (it takes precedence over the drawing)." : "Without a drawing, the model is built from this text alone; sizes that are not given are chosen and marked as assumed."}</div>`);
+    const om = S.objMode || "auto";
+    h += sec("Object", "layers", `<div class="seg full" id="objMode">${[["auto", "Automatic"], ["single", "Single part"], ["assembly", "Assembly / structure"]].map(([k, l]) =>
+      `<button data-om="${k}" class="${om === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      <div class="desc">${om === "single" ? "One part from one sheet: every dimension is read and the model is compared view by view with the drawing."
+        : om === "assembly" ? "Plants, steel structures, machines and multi-sheet sets: every sheet is surveyed, each view is read enlarged from the original, the object is split into components that are modelled one by one and assembled."
+        : "Several sheets are treated as an assembly or structure, one sheet as a single part."}</div>`);
     h += `<button class="btn ai lg block" id="homeGen">${I("generate")} Generate 3D model</button>
       <div class="row" style="margin:8px 0 12px;justify-content:space-between"><button class="btn sm" id="homeRead" ${pages ? "" : "disabled"}>${I("read")} Read the drawing only</button>
       <button class="btn sm" id="homeVals" ${p && p.resolved ? "" : "disabled"}>${I("values")} Build from dimensions</button></div>`;
@@ -595,6 +609,11 @@
     const rt = $("#reqText");
     if (rt) rt.addEventListener("change", () => P() && api("POST", `/api/projects/${P().id}`, { request: rt.value }).then((p) => { P().request = p.request; }).catch(() => {}));
     on("#homeGen", "click", () => generate());
+    $$("#objMode button").forEach((b) => b.addEventListener("click", () => {
+      S.objMode = b.dataset.om;
+      try { localStorage.setItem("aicad.objMode", S.objMode); } catch (e) { /* private window */ }
+      renderLeft();
+    }));
     on("#homeRead", "click", readOnly);
     on("#homeVals", "click", () => generate("spec"));
     on("#aiStart", "click", async () => {
@@ -669,6 +688,10 @@
       const keep = S._lastProject === P().id;
       S.viewer.load(data, keep);
       S._lastProject = P().id;
+      const asm = P().assembly;
+      if (asm && asm.plan) {
+        S.viewer.parts.forEach((pt, i) => { if (asm.status[pt.name] && !asm.status[pt.name].ok) S.viewer.setPartGhost(i, true); });
+      }
       const m = v.metrics;
       $("#vHud").textContent = `${v.id} · ${fmt(m.size[0])} × ${fmt(m.size[1])} × ${fmt(m.size[2])} mm · ${m.solids} solid${m.solids > 1 ? "s" : ""} · ${m.faces} faces`;
       renderRight();
@@ -687,13 +710,21 @@
     S.dv.setPage(fileUrl("input/" + pg.file), pg.w, pg.h);
     const res = p.resolved;
     const cal = p.calib && p.calib[pg.file];
+    // an assembly reads each sheet on its own: show that sheet's views and scale
+    const sheet = p.assembly && (p.assembly.sheets || []).find((s) => s.file === pg.file);
+    let views = res ? res.views : [], ascale = null;
+    if (sheet) {
+      views = sheet.views;
+      const sc0 = sheet.views.map((v) => (p.assembly.scales[v.id] || [])[0]).find((x) => x);
+      ascale = sc0 || null;
+    }
     S.dv.setOverlay({
-      views: res ? res.views : [],
-      estimates: res ? res.values.filter((v) => v.p1) : [],
+      views,
+      estimates: res && !sheet ? res.values.filter((v) => v.p1) : [],
       texts: pg.texts || [],
-      scale: cal ? cal.mm_per_px : (res && res.scale ? res.scale.mm_per_px : null),
+      scale: cal ? cal.mm_per_px : (ascale || (res && res.scale ? res.scale.mm_per_px : null)),
     });
-    const sc = cal ? cal.mm_per_px : res && res.scale && res.scale.mm_per_px;
+    const sc = cal ? cal.mm_per_px : ascale || (res && res.scale && res.scale.mm_per_px);
     $("#dInfo").textContent = `${pg.source} · p${pg.page} · ${pg.w}×${pg.h}px` + (sc ? ` · ${sc.toFixed(4)} mm/px` : " · no scale yet");
   }
   function toggleDv(k, val) {
@@ -887,11 +918,23 @@
     const box = $("#r-params"), p = P();
     const params = p ? p.params || [] : [];
     if (!params.length) { box.innerHTML = `<div class="empty">The model code has no parameter block yet.</div>`; return; }
-    let h = `<div class="desc">Every dimension of the model. Change values and press <b>Apply</b>: the model is rebuilt at once without the AI.</div>
-      <table class="t"><tr><th>Parameter</th><th style="width:92px">Value</th><th></th></tr>${params.map((q) => `<tr class="${S.paramEdits[q.name] !== undefined ? "changed" : ""}" title="${esc(q.desc)}">
+    const comps = {};
+    for (const c of ((p.assembly && p.assembly.plan) || {}).components || []) comps[c.id] = c.name;
+    let last = null;
+    const rows = params.map((q) => {
+      const k = q.key || q.name;
+      let head = "";
+      if (q.group && q.group !== last) {
+        last = q.group;
+        head = `<tr><td colspan="3" style="background:var(--sub);font-weight:700;font-size:11.5px">${esc(comps[q.group] || q.group)} <span class="hint mono">${esc(q.group)}</span></td></tr>`;
+      }
+      return head + `<tr class="${S.paramEdits[k] !== undefined ? "changed" : ""}" title="${esc(q.desc)}">
       <td><span class="mono" style="font-size:11.5px">${esc(q.name)}</span><br><span class="hint">${esc(q.desc).slice(0, 60)}</span></td>
-      <td><input data-par="${esc(q.name)}" value="${S.paramEdits[q.name] ?? (q.int ? q.value.toFixed(0) : +q.value.toFixed(6))}"></td>
-      <td>${q.source ? `<span class="src ${q.source}">${q.source}</span>` : ""}</td></tr>`).join("")}</table>
+      <td><input data-par="${esc(k)}" value="${S.paramEdits[k] ?? (q.int ? q.value.toFixed(0) : +q.value.toFixed(6))}"></td>
+      <td>${q.source ? `<span class="src ${q.source}">${q.source}</span>` : ""}</td></tr>`;
+    }).join("");
+    let h = `<div class="desc">Every dimension of the model. Change values and press <b>Apply</b>: the model is rebuilt at once without the AI.</div>
+      <table class="t"><tr><th>Parameter</th><th style="width:92px">Value</th><th></th></tr>${rows}</table>
       <div class="row" style="margin-top:8px"><button class="btn primary" id="parApply">${I("rebuild")} Apply</button><button class="btn" id="parReset">Reset</button></div>`;
     box.innerHTML = h;
     $$("[data-par]", box).forEach((inp) => {
@@ -903,12 +946,48 @@
   }
   function renderParts() {
     const box = $("#r-parts");
+    const asm = P() && P().assembly;
+    if (asm && asm.plan) return renderComponents(box, asm);
     if (!S.viewer || !S.viewer.parts.length) { box.innerHTML = `<div class="empty">No model loaded.</div>`; return; }
     box.innerHTML = `<table class="t"><tr><th></th><th>Part</th><th></th></tr>${S.viewer.parts.map((pt, i) => `<tr>
       <td><input type="checkbox" data-part="${i}" ${pt.visible ? "checked" : ""}></td><td>${esc(pt.name)}</td>
       <td><span style="display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--line2);background:#${pt.color.getHexString()}"></span></td></tr>`).join("")}</table>
       <div class="desc">${S.viewer.parts.length > 1 ? "Components of the assembly; they are kept as separate bodies in the STEP file." : "A single part."}</div>`;
     $$("[data-part]", box).forEach((c) => c.addEventListener("change", () => S.viewer.setPartVisible(+c.dataset.part, c.checked)));
+  }
+
+  /* components of a large object: status of each, visibility, redo with the AI */
+  function renderComponents(box, asm) {
+    const plan = asm.plan, st = asm.status || {};
+    const partIdx = {};
+    (S.viewer ? S.viewer.parts : []).forEach((pt, i) => { partIdx[pt.name] = i; });
+    const nok = plan.components.filter((c) => (st[c.id] || {}).ok).length;
+    let h = `<div class="desc"><b>${esc(plan.name)}</b> · ${nok} of ${plan.components.length} components modelled${nok < plan.components.length ? "; the others are shown as red boxes at their planned place" : ""}.</div>
+      <div class="desc hint">Datum: ${esc(plan.datum || "–")}</div>
+      <table class="t"><tr><th></th><th>Component</th><th>State</th><th></th></tr>`;
+    for (const c of plan.components) {
+      const s = st[c.id] || {};
+      const i = partIdx[c.id];
+      const off = s.envelope_offset;
+      const state = !s.ok ? `<span class="src assumed" title="${esc(s.error || "")}">placeholder</span>`
+        : off !== null && off !== undefined && off > 0.15 ? `<span class="src ratio" title="The built component lies ${fmt(off * 100, 0)} % off its planned box">${fmt(off * 100, 0)} % off</span>`
+        : `<span class="src drawing">ok</span>`;
+      h += `<tr title="${esc(c.description)}"><td>${i !== undefined ? `<input type="checkbox" data-part="${i}" ${S.viewer.parts[i].visible ? "checked" : ""}>` : ""}</td>
+        <td><b style="font-size:12px">${esc(c.name)}</b><br><span class="hint mono">${esc(c.id)} · ${esc(c.kind)}</span></td><td>${state}</td>
+        <td><button class="btn sm" data-redo="${esc(c.id)}" title="Model this component again with the AI (optionally with an instruction)">Redo</button></td></tr>`;
+    }
+    h += `</table><div class="row" style="margin-top:8px"><button class="btn" id="asmReplan" title="Plan the components again from the stored readings">Plan again</button>
+      <span class="hint">${asm.sheets.length} sheet(s), ${asm.sheets.reduce((n, s) => n + s.views.length, 0)} views read</span></div>`;
+    if ((plan.notes || []).length) h += `<div class="subh">Assumptions</div>` + plan.notes.map((n) => `<div class="note ai">${esc(n)}</div>`).join("");
+    box.innerHTML = h;
+    $$("[data-part]", box).forEach((cb) => cb.addEventListener("change", () => S.viewer.setPartVisible(+cb.dataset.part, cb.checked)));
+    $$("[data-redo]", box).forEach((b) => b.addEventListener("click", () => {
+      const ins = prompt(`Model '${b.dataset.redo}' again. Optional instruction (e.g. "the columns are HEB300, 6 m apart"):`, "");
+      if (ins === null) return;
+      startJob(api("POST", `/api/projects/${P().id}/component`, { cid: b.dataset.redo, instruction: ins }), `Modelling component ${b.dataset.redo} again`);
+      setDock("ai");
+    }));
+    on("#asmReplan", "click", () => { startJob(api("POST", `/api/projects/${P().id}/replan`, { text: reqText() }), "Planning the components again"); setDock("ai"); });
   }
 
   // ------------------------------------------------------------------ status
@@ -975,7 +1054,7 @@
     const list = await api("GET", "/api/examples");
     modal("Examples", list.length ? `<div class="desc" style="margin-bottom:10px">Each example opens as a new project. <b>Open</b> starts with the drawing or description only (to run the AI); <b>With reference</b> also builds the hand-made reference model for comparison.</div><div class="plist">${list.map((x) => `<div class="pcard">
       <div class="im">${x.thumb ? `<img src="/examples/${x.thumb}">` : I("describe")}</div>
-      <div class="tx"><b>${esc(x.title)}</b><small>${esc(x.description)}</small>
+      <div class="tx"><b>${esc(x.title)}</b>${x.hard ? ' <span class="src assumed">real drawing</span>' : ""}<small>${esc(x.description)}</small>
       <div class="row" style="margin-top:6px"><button class="btn sm primary" data-ex="${x.id}">Open</button>${x.reference ? `<button class="btn sm" data-exref="${x.id}">With reference</button>` : ""}</div></div></div>`).join("")}</div>` : `<div class="empty">No examples are installed.</div>`);
     const openEx = async (id, ref) => {
       closeModal();
@@ -1069,6 +1148,7 @@
     $("#vMeasure").addEventListener("click", (e) => { const on = !e.currentTarget.classList.contains("on"); e.currentTarget.classList.toggle("on", on); S.viewer && S.viewer.setMeasure(on); if (on) toast("Click two points on the model."); });
     $("#vShot").addEventListener("click", screenshot);
     // drawing toolbar
+    try { S.objMode = localStorage.getItem("aicad.objMode") || "auto"; } catch (e) { S.objMode = "auto"; }
     S.dv = new window.DrawingView($("#dCanvas"));
     $("#dShowViews").classList.add("on"); $("#dShowEst").classList.add("on");
     $("#dShowViews").addEventListener("click", () => toggleDv("views"));

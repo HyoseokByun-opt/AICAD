@@ -30,21 +30,33 @@ def _source(comment: str) -> tuple[str, str]:
 
 
 def parse(code: str) -> list[dict]:
-    """Numbers in the PARAMETERS block, or top-level numeric constants when
-    the block is missing."""
+    """Numbers in the PARAMETERS block(s), or top-level numeric constants when
+    there is no block. An assembly has one block per component, inside the
+    component's builder function and named after it ("# --- PARAMETERS c3 (mm)");
+    its parameters carry the component as `group` and are keyed "c3.name"."""
     lines = code.splitlines()
     out = []
-    start = next((i for i, l in enumerate(lines) if BEGIN.match(l) and not END.match(l)), None)
-    if start is not None:
-        for i in range(start + 1, len(lines)):
-            if END.match(lines[i]):
-                break
-            m = LINE.match(lines[i])
-            if m and not m.group("ind"):
-                desc, src = _source(m.group("cmt"))
-                v = m.group("val")
-                out.append({"name": m.group("name"), "value": float(v), "int": _is_int(v),
-                            "desc": desc, "source": src, "line": i + 1})
+    i = 0
+    found = False
+    while i < len(lines):
+        l = lines[i]
+        if BEGIN.match(l) and not END.match(l):
+            found = True
+            ind = len(l) - len(l.lstrip())
+            m = re.search(r"PARAMETERS\s+([A-Za-z_]\w*)", l)
+            group = m.group(1) if m and m.group(1).lower() not in ("mm",) else ""
+            i += 1
+            while i < len(lines) and not END.match(lines[i]):
+                mm = LINE.match(lines[i])
+                if mm and len(mm.group("ind")) == ind:
+                    desc, src = _source(mm.group("cmt"))
+                    v = mm.group("val")
+                    name = mm.group("name")
+                    out.append({"name": name, "key": f"{group}.{name}" if group else name, "group": group,
+                                "value": float(v), "int": _is_int(v), "desc": desc, "source": src, "line": i + 1})
+                i += 1
+        i += 1
+    if found:
         return out
     try:
         tree = ast.parse(code)
@@ -56,9 +68,9 @@ def parse(code: str) -> list[dict]:
                 and not isinstance(node.value.value, bool):
             m = LINE.match(lines[node.lineno - 1])
             desc, src = _source(m.group("cmt") if m else "")
-            out.append({"name": node.targets[0].id, "value": float(node.value.value),
-                        "int": isinstance(node.value.value, int), "desc": desc, "source": src,
-                        "line": node.lineno})
+            name = node.targets[0].id
+            out.append({"name": name, "key": name, "group": "", "value": float(node.value.value),
+                        "int": isinstance(node.value.value, int), "desc": desc, "source": src, "line": node.lineno})
     return out
 
 
@@ -74,12 +86,13 @@ def _fmt(v: float, as_int: bool) -> str:
 
 
 def update(code: str, values: dict, mark_user: bool = True) -> str:
-    """Write new values into the parameter lines; the comment is kept and the
-    provenance becomes [user] for every value that changed."""
-    params = {p["name"]: p for p in parse(code)}
+    """Write new values into the parameter lines (keys as returned by parse);
+    the comment is kept and the provenance becomes [user] for every value
+    that changed."""
+    params = {p["key"]: p for p in parse(code)}
     lines = code.splitlines()
-    for name, val in values.items():
-        p = params.get(name)
+    for key, val in values.items():
+        p = params.get(key)
         if p is None:
             continue
         try:
@@ -95,6 +108,6 @@ def update(code: str, values: dict, mark_user: bool = True) -> str:
         if mark_user:
             src = "user"
         cmt = (desc + (f" [{src}]" if src else "")).strip()
-        new = f"{name} = {_fmt(v, p['int'])}"
-        lines[p["line"] - 1] = new + (" " * max(1, 22 - len(new)) + "# " + cmt if cmt else "")
+        new = f"{m.group('ind')}{p['name']} = {_fmt(v, p['int'])}"
+        lines[p["line"] - 1] = new + (" " * max(1, 22 + len(m.group('ind')) - len(new)) + "# " + cmt if cmt else "")
     return "\n".join(lines) + ("\n" if code.endswith("\n") else "")

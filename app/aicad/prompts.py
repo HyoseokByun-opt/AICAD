@@ -35,12 +35,15 @@ Answer with ONE JSON object and nothing else, with these keys:
   "part_name": short name of the object (letters, digits, '-', '_'),
   "kind": "part" or "assembly" (several separate components, e.g. equipment on a base frame),
   "summary": one or two sentences: what the object is and how it is built in 3D,
-  "units": "mm" or "inch" (as written on the drawing; mm if not stated),
+  "units": "mm", "m", "inch" or "ft-in" (as written on the drawing; mm if not stated),
+  "scale_bars": [ {{"p1": [x, y] at the zero mark, "p2": [x, y] at the mark of `length`, "length": number,
+                   "unit": "mm|m|ft|in"}} ]  (graphic scale bars; [] if none),
   "projection": "third-angle", "first-angle" or "unknown",
   "drawing_scale": scale from the title block such as "1:2", or null,
   "views": [ {{"id": "V1", "type": "front|top|bottom|left|right|rear|section|detail|isometric|other",
               "box": [x0, y0, x1, y1], "label": text label under the view or ""}} ],
-  "overall": {{"x": number or null, "y": number or null, "z": number or null}},
+  "overall": {{"x": size or null, "y": size or null, "z": size or null}}  (a number in the drawing unit, or the
+             text as written such as "168'-0\\""),
   "dimensions": [ {{"id": "D1", "name": snake_case name, "value": number, "type": "length|diameter|radius|angle|count|thread",
                    "axis": "x|y|z" or null, "view": view id, "text": the text exactly as written,
                    "describes": what the dimension measures}} ],
@@ -70,6 +73,8 @@ Rules:
    (body, legs or skirt, base frame, nozzles and flanges, motor, anchor holes); internal details are not
    needed unless drawn.
 7. If text extracted from the drawing file is supplied, its numbers are exact: use them.
+8. Feet-and-inch drawings: always copy the text exactly (18'-10 1/2"); the program converts it. A drawing without
+   dimensions often has a graphic scale bar: report it in "scale_bars" - it gives every size by measurement.
 """
 
 
@@ -111,12 +116,39 @@ CADQUERY_NOTES = """CadQuery facts (version 2.x) - follow them exactly:
   loc=cq.Location((x, y, z))). Colours: "gray", "gray50", "lightgray", "steelblue", "orange", "red",
   "green", "blue", "black", "yellow" or cq.Color(r, g, b) with 0..1 values."""
 
+API_SUMMARY = """lib functions (mm, Z up, global coordinates; each returns a Workplane):
+  units:     lib.ft(feet, inches) -> mm ; lib.inch(x) ; lib.ftin("18'-10 1/2\\"") -> mm
+  solids:    lib.box(x0,y0,z0, x1,y1,z1) ; lib.box_c(cx,cy,cz, lx,ly,lz) ; lib.cyl(p0, p1, d) ;
+             lib.tube(p0, p1, od, t) ; lib.cone(p0, p1, d0, d1) ; lib.sphere(c, d)
+  outlines:  lib.prism([(x,y),...], z0, z1)  plan outline between elevations (slabs, pedestals, foundations)
+             lib.extrude_on("XZ", [(x,z),...], y0, y1)  elevation/section outline extruded across (also "YZ" with (y,z))
+             lib.revolve([(r,h),...], origin=(x,y,z), axis="z")  half section revolved (casings, rotors, vessels, shafts)
+             lib.plate([(x,y),...], t, z)
+  steel:     lib.member("HEB300" | "H300x300x10x15" | "IPE400" | "W14x30" | "C200x80x7.5x11" | "UPN200" |
+                        "L100x100x10" | "L4x4x1/2" | "PIPE168.3x7.1" | "SHS100x100x6" | "RHS200x100x6" |
+                        "FB100x10" | "ROD50", p0, p1, roll=0, align="center"|"top"|"bottom")
+             lib.frame(nodes={"A": (x,y,z), ...}, members=[("A","B","HEB300"), ("B","C","L75x75x8", 0), ...])
+             lib.grating(x0,y0,x1,y1, z_top, t=30) ; lib.handrail([p0,p1,...], h=1100) ;
+             lib.ladder((x,y,z), top_z) ; lib.stair(p_bottom, p_top, width=900)
+  piping:    lib.pipe([p0,p1,p2,...], od, t=None) ; lib.flange(center, direction, od, t, bore, pcd, n_bolts, bolt_d) ;
+             lib.nozzle(base, direction, od, length, flange_od=None, flange_t=None)
+  vessels:   lib.vessel(base, d, h, head="2:1"|"hemi"|"cone"|"flat", axis="z") ; lib.dish(center, d, h, direction)
+  machines:  lib.blade_row(origin, n, r_hub, r_tip, height, stagger=30, twist=0, axis="z")  (height = axial width) ;
+             lib.bolt_holes(center, direction, pcd, n, d, length)  (cut tools) ;
+             lib.polar(shape, n, origin, axis) ; lib.linear(shape, n, (dx,dy,dz)) ;
+             lib.spiral_case(origin, inlet_d, r_stay, axis="z")  (turbine/pump volute) ;
+             lib.transition(p0, ("circle", d), p1, ("rect", w, h))  (draft tubes, ducts, hoppers, reducers)
+  grouping:  lib.compound(a, b, [c, d], ...)  several solids as one part without slow unions"""
+
+
 CODE_RULES = f"""{AXES}
 
 Write ONE complete Python script for CadQuery that builds the object.
 
 Script rules:
-1. First line: import cadquery as cq  (import math is allowed; nothing else; no files, no show()).
+1. First line: import cadquery as cq  (import math and import aicad_lib as lib are allowed; nothing else;
+   no files, no show()). The library helps with steel members, frames, revolved half sections, vessels,
+   nozzles, flanges, bolt circles and blade rows - see the list below.
 2. Then the parameter block, every dimension a named number with a comment and its source in brackets:
    # --- PARAMETERS (mm) ---
    length = 200.0      # overall length [drawing]
@@ -133,7 +165,9 @@ Script rules:
    a tapped hole is a plain hole of the nominal diameter (say so in the comment).
 6. Answer with the script in one ```python code block and nothing after it.
 
-{CADQUERY_NOTES}"""
+{CADQUERY_NOTES}
+
+{API_SUMMARY}"""
 
 CODE_SYSTEM = """You are an expert CAD engineer who writes clean, parametric CadQuery (Python) models.
 You know engineering drawing conventions, standard parts (flanges, bolts, bearings, profiles, pipe sizes)

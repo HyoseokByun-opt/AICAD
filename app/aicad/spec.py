@@ -22,7 +22,7 @@ import re
 import statistics
 
 from .cadexec import VIEW_AXES
-from . import vision
+from . import units, vision
 
 ORTHO = set(VIEW_AXES)
 
@@ -83,15 +83,58 @@ def _num(v):
     return float(m.group(0).replace(",", ".")) if m else None
 
 
+def _unit(u) -> str:
+    u = str(u or "mm").lower().replace(" ", "")
+    if "ft" in u or "'" in u or "feet" in u:
+        return "ft-in"
+    if u.startswith("in") or u == '"':
+        return "inch"
+    if u in ("m", "meter", "metre", "meters", "metres"):
+        return "m"
+    return "mm"
+
+
+# a bare number in the drawing unit -> mm (a bare number on a feet-and-inch drawing is taken as feet)
+BARE = {"mm": 1.0, "m": 1000.0, "inch": 25.4, "ft-in": 304.8}
+
+
+def _to_mm(v, unit):
+    if v is None or v == "":
+        return None
+    if isinstance(v, str) and re.search(r"['\"]|mm|cm|\bm\b|\bin\b", v.lower()):
+        return units.parse_length(v, unit)
+    n = _num(v)
+    return None if n is None else n * BARE[unit]
+
+
 def normalize(spec: dict) -> dict:
-    """Coerce the AI's answer into the expected shape (missing keys filled)."""
+    """Coerce the AI's answer into the expected shape (missing keys filled).
+    Lengths are converted to mm once (feet and inches, inches, metres); the
+    result is marked so that normalising it again changes nothing."""
     s = dict(spec or {})
+    done = bool(s.get("_mm"))
     s.setdefault("part_name", "part")
     s["part_name"] = re.sub(r"[^\w\- ]+", "", str(s.get("part_name") or "part"))[:60] or "part"
     s.setdefault("summary", "")
-    s["units"] = "inch" if str(s.get("units", "mm")).lower().startswith("in") else "mm"
+    unit = _unit(s.get("units"))
+    s["units"] = unit
     ov = s.get("overall") or {}
-    s["overall"] = {a: _num(ov.get(a)) for a in ("x", "y", "z")}
+    s["overall"] = {a: (_num(ov.get(a)) if done else _to_mm(ov.get(a), unit)) for a in ("x", "y", "z")}
+    bars = []
+    for b in s.get("scale_bars") or []:
+        if not isinstance(b, dict):
+            continue
+        try:
+            p1 = [float(b["p1"][0]), float(b["p1"][1])]
+            p2 = [float(b["p2"][0]), float(b["p2"][1])]
+        except (KeyError, TypeError, ValueError, IndexError):
+            continue
+        L = b.get("length_mm") if done else units.parse_length(
+            f"{b.get('length')}{ {'ft': chr(39), 'in': chr(34)}.get(str(b.get('unit', '')).lower(), ' ' + str(b.get('unit', '')))}",
+            "mm")
+        if L:
+            bars.append({"p1": p1, "p2": p2, "length_mm": float(L)})
+    s["scale_bars"] = bars
     views = []
     for i, v in enumerate(s.get("views") or []):
         if not isinstance(v, dict):
@@ -110,14 +153,24 @@ def normalize(spec: dict) -> dict:
     for i, d in enumerate(s.get("dimensions") or []):
         if not isinstance(d, dict):
             continue
-        val = _num(d.get("value"))
+        typ = str(d.get("type") or "length").lower()
+        text = str(d.get("text") or "")
+        if done:
+            val = _num(d.get("value"))
+        elif typ in ("angle", "count"):
+            val = _num(d.get("value")) if d.get("value") is not None else _num(text)
+        else:
+            # the written text wins: '18'-10 1/2"' is exact, the AI's own number may not be
+            val = units.parse_length(text, unit) if re.search(r"\d", text) else None
+            if val is None:
+                val = _to_mm(d.get("value"), unit)
         if val is None:
             continue
         ax = str(d.get("axis") or "").lower()
         dims.append({"id": str(d.get("id") or f"D{i + 1}"), "name": _ident(d.get("name") or f"d{i + 1}"),
-                     "value": val, "type": str(d.get("type") or "length").lower(),
+                     "value": val, "type": typ,
                      "axis": ax if ax in ("x", "y", "z") else None, "view": d.get("view"),
-                     "text": str(d.get("text") or ""), "describes": str(d.get("describes") or "")})
+                     "text": text, "describes": str(d.get("describes") or "")})
     s["dimensions"] = dims
     ests = []
     for i, e in enumerate(s.get("estimates") or []):
@@ -132,11 +185,12 @@ def normalize(spec: dict) -> dict:
                      "p1": [_num(p1[0]), _num(p1[1])] if ok else None,
                      "p2": [_num(p2[0]), _num(p2[1])] if ok else None,
                      "axis": ax if ax in ("x", "y", "z") else None,
-                     "guess": _num(e.get("guess"))})
+                     "guess": _num(e.get("guess")) if done else _to_mm(e.get("guess"), unit)})
     s["estimates"] = ests
     s["features"] = [f for f in (s.get("features") or []) if isinstance(f, dict)]
     s["notes"] = [str(n) for n in (s.get("notes") or [])][:30]
     s["questions"] = [str(q) for q in (s.get("questions") or [])][:10]
+    s["_mm"] = True
     return s
 
 
@@ -157,8 +211,8 @@ def _title_scale(text):
 def resolve(spec: dict, page: dict | None, page_path=None, calib: dict | None = None) -> dict:
     """Values to build from, with provenance, plus the scale that was used."""
     s = normalize(spec)
-    unit_f = 25.4 if s["units"] == "inch" else 1.0
-    out = {"units": "mm", "unit_factor": unit_f, "views": [], "values": [], "warnings": [],
+    unit_f = 1.0                     # normalize() has converted every length to mm
+    out = {"units": "mm", "drawing_units": s["units"], "views": [], "values": [], "warnings": [],
            "scale": {"mm_per_px": None, "source": None, "candidates": []}}
     W = (page or {}).get("w") or 1
     H = (page or {}).get("h") or 1
@@ -233,6 +287,16 @@ def resolve(spec: dict, page: dict | None, page_path=None, calib: dict | None = 
     elif page and page.get("kind") == "dxf" and page.get("dxf_scale"):
         f = {"mm": 1.0, "cm": 10.0, "m": 1000.0, "inch": 25.4}.get(page.get("units") or "mm", 1.0)
         out["scale"].update(mm_per_px=f / page["dxf_scale"]["s"], source="DXF model space (1:1)")
+    elif s.get("scale_bars"):
+        bs = []
+        for b in s["scale_bars"]:
+            p1 = [b["p1"][0] / 1000 * W, b["p1"][1] / 1000 * H]
+            p2 = [b["p2"][0] / 1000 * W, b["p2"][1] / 1000 * H]
+            L = vision.dist(p1, p2)
+            if L > 10:
+                bs.append(b["length_mm"] / L)
+        if bs:
+            out["scale"].update(mm_per_px=statistics.median(bs), source="graphic scale bar")
     per_view = {}
     for rv in out["views"]:
         if not rv["axes"]:

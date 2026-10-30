@@ -17,9 +17,9 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-PAGE_LONG = 2400          # long side of a rendered page, pixels
-MAX_PAGES = 30
-RASTER_MAX = 5000
+PAGE_LONG = 3200          # long side of a rendered PDF page, pixels
+MAX_PAGES = 60
+RASTER_MAX = 6000         # long side of a raster page as stored; the original is kept for zoomed reading
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp", ".gif"}
 SUPPORTED = IMAGE_EXT | {".pdf", ".dxf"}
 
@@ -72,7 +72,8 @@ def _pdf(src, outdir, stem):
             pass
         pages.append({"file": name, "w": img.width, "h": img.height, "source": src.name, "page": i + 1,
                       "kind": "pdf-vector" if texts else "raster", "texts": texts[:600],
-                      "paper_mm": [round(pw * 25.4 / 72, 2), round(ph * 25.4 / 72, 2)]})
+                      "paper_mm": [round(pw * 25.4 / 72, 2), round(ph * 25.4 / 72, 2)],
+                      "orig": {"file": src.name, "pdf_page": i, "pt": [pw, ph]}})
     if not pages:
         raise IngestError("The PDF has no pages.")
     return pages
@@ -80,7 +81,11 @@ def _pdf(src, outdir, stem):
 
 # ------------------------------------------------------------------ images
 def _image(src, outdir, stem):
+    """Raster pages. Scans of large sheets (20 000 px and more, often 1-bit)
+    are reduced with a box filter, which keeps thin lines as grey instead of
+    dropping them; the original file stays in the project for zoomed reading."""
     from PIL import Image, ImageOps
+    Image.MAX_IMAGE_PIXELS = None          # local drawings, not untrusted web images
     try:
         im = Image.open(src)
     except Exception as e:
@@ -92,19 +97,25 @@ def _image(src, outdir, stem):
             im.seek(i)
         except EOFError:
             break
-        fr = ImageOps.exif_transpose(im.copy())
-        if fr.mode in ("RGBA", "LA", "P"):
+        W0, H0 = im.size
+        fr = im
+        if fr.mode == "1" or fr.mode.startswith("I;16") or fr.mode == "I":
+            fr = fr.convert("L")
+        elif fr.mode in ("RGBA", "LA", "P", "PA"):
             fr = fr.convert("RGBA")
             bg = Image.new("RGBA", fr.size, (255, 255, 255, 255))
-            fr = Image.alpha_composite(bg, fr)
-        fr = fr.convert("RGB")
+            fr = Image.alpha_composite(bg, fr).convert("RGB")
+        elif fr.mode not in ("L", "RGB"):
+            fr = fr.convert("RGB")
         if max(fr.size) > RASTER_MAX:
-            s = RASTER_MAX / max(fr.size)
-            fr = fr.resize((round(fr.width * s), round(fr.height * s)), Image.LANCZOS)
+            f = -(-max(fr.size) // RASTER_MAX)          # integer reduction factor
+            fr = fr.reduce(f)
+        fr = ImageOps.exif_transpose(fr)
         name = f"{stem}_p{i + 1:03d}.png"
         fr.save(outdir / name)
         pages.append({"file": name, "w": fr.width, "h": fr.height, "source": src.name, "page": i + 1,
-                      "kind": "raster", "texts": []})
+                      "kind": "raster", "texts": [],
+                      "orig": {"file": src.name, "frame": i, "w": W0, "h": H0}})
     return pages
 
 

@@ -588,7 +588,81 @@ def main():
         shutil.rmtree(build, ignore_errors=True)
         index.append(entry)
         print(f"{ex['id']:15s} {ex['fmt']:5s} size {r['metrics']['size']}  volume {r['metrics']['volume']:.0f}")
+    index += hard_examples(w)
     (EX / "examples.json").write_text(json.dumps(index, indent=1), encoding="utf-8")
+
+
+# ===================================================================== real drawings
+HAER = ("Historic American Engineering Record (HAER), National Park Service; Library of Congress, Prints & "
+        "Photographs Division. Public domain (no known restrictions), via Wikimedia Commons.")
+HARD = [
+    {"id": "turbine_unit", "title": "Turbine and generator unit, 1925 (hard)",
+     "description": "Real drawing, HAER AL-47-A (Wilson Dam): half section of a 35,000 hp Francis turbine and "
+                    "generator. No dimensions at all - sizes only from the graphic scale bars; two scales on one sheet.",
+     "files": [("wilson_turbine/turbine_generator_unit.tif", "turbine_generator_unit.tif", None)], "reference": True,
+     "text": "Model the turbine and generator unit as a layout model: generator, exciter, shaft, Francis runner, "
+             "wicket gates and stay vanes, spiral distributor, draft tube and the surrounding concrete."},
+    {"id": "steel_truss", "title": "Steel deck truss, erection plan (hard)",
+     "description": "Real drawing, HAER FL-12 (Apalachicola River Bridge): photograph of a 1934 erection plan - two "
+                    "Warren trusses, top and bottom laterals, sway frames; feet-and-inch dimensions, member marks.",
+     "files": [("steel_truss/truss_span1.tif", "truss_span1.jpg", 88)], "reference": True, "text": ""},
+    {"id": "turbine_building", "title": "Turbine building, three sheets (hard)",
+     "description": "Real drawing set, HAER CT-185-C (Haddam Neck plant): turbine support outline, machine location "
+                    "sections and the operating floor plan; 21,600 x 13,000 px scans, feet-and-inch dimensions.",
+     "files": [("turbine_building/turbine_support_outline.tif", "turbine_support_outline.tif", None),
+               ("turbine_building/machine_sections_s10.tif", "machine_sections_s10.tif", None),
+               ("turbine_building/plan_operating_floor_s9.tif", "plan_operating_floor_s9.tif", None)],
+     "reference": False, "text": "Layout model of the turbine-generator support (pedestal), the machines on it and "
+                                 "the operating floor."},
+]
+
+
+def hard_examples(w):
+    """Real drawings (public domain) copied from downloads/hard when present;
+    an existing copy in examples/ is kept otherwise."""
+    from PIL import Image
+    Image.MAX_IMAGE_PIXELS = None
+    src_root = ROOT / "downloads" / "hard"
+    out = []
+    for ex in HARD:
+        d = EX / ex["id"]
+        d.mkdir(parents=True, exist_ok=True)
+        names = []
+        for src, name, jpeg_q in ex["files"]:
+            dst = d / name
+            s = src_root / src
+            if s.exists() and not dst.exists():
+                if jpeg_q:
+                    Image.open(s).convert("L").save(dst, quality=jpeg_q, optimize=True)
+                else:
+                    shutil.copyfile(s, dst)
+            if dst.exists():
+                names.append(f"{ex['id']}/{name}")
+        if not names:
+            print(f"{ex['id']:15s} skipped (drawing not found)")
+            continue
+        (d / "SOURCE.txt").write_text(HAER + "\n", encoding="utf-8")
+        entry = {"id": ex["id"], "title": ex["title"], "description": ex["description"], "drawing": names[0],
+                 "drawings": names, "text": ex["text"], "hard": True, "mode": "assembly", "source": HAER}
+        ref = d / "reference.py"
+        if ex["reference"] and ref.exists():
+            build = d / "_build"
+            r = w.build(ref.read_text(encoding="utf-8"), build, name=ex["id"], views=["iso"], timeout=900)
+            if not r.get("ok"):
+                raise SystemExit(f"{ex['id']}: reference does not build: {r.get('error')}")
+            shutil.copyfile(build / "view_iso.png", d / "thumb.png")
+            shutil.rmtree(build, ignore_errors=True)
+            entry.update(reference=f"{ex['id']}/reference.py", thumb=f"{ex['id']}/thumb.png",
+                         truth={"size": r["metrics"]["size"], "volume": r["metrics"]["volume"],
+                                "solids": r["metrics"]["solids"], "parts": r["metrics"]["parts"]})
+        else:
+            im = Image.open(EX / names[0])
+            im.thumbnail((640, 640))
+            im.convert("L").save(d / "thumb.png")
+            entry["thumb"] = f"{ex['id']}/thumb.png"
+        out.append(entry)
+        print(f"{ex['id']:15s} real  {len(names)} sheet(s)" + (f", reference {entry['truth']['size']}" if "truth" in entry else ""))
+    return out
 
 
 if __name__ == "__main__":

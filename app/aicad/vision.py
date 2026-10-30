@@ -23,12 +23,68 @@ def load_gray(path) -> np.ndarray:
 
 
 def ink(gray: np.ndarray) -> np.ndarray:
+    """Line work as a binary mask. A clean sheet takes a global (Otsu)
+    threshold; a photographed or stained print, whose paper is not evenly lit,
+    takes a local threshold against the surrounding paper instead."""
     import cv2
     _, m = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    # a nearly white page makes Otsu split the paper noise; keep it dark only
-    if (m > 0).mean() > 0.5:
+    frac = (m > 0).mean()
+    small = cv2.resize(gray, (max(8, gray.shape[1] // 16), max(8, gray.shape[0] // 16)), interpolation=cv2.INTER_AREA)
+    bg = cv2.medianBlur(small, 9 if min(small.shape) > 9 else 3)
+    uneven = float(np.percentile(bg, 90) - np.percentile(bg, 10)) > 40
+    if frac > 0.25 or uneven:
+        blk = max(15, (min(gray.shape) // 40) | 1)
+        m = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, blk, 18)
+        # specks of paper texture are not lines
+        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
+    elif frac > 0.5:
         _, m = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY_INV)
     return m
+
+
+def zoom_crop(input_dir, page: dict, box, out, max_side=2048, pad=0.03):
+    """A region of a page at the best resolution available.
+
+    The page image is reduced for display; this crop comes from the original
+    file (a re-render of the PDF page, or the full-resolution scan), so small
+    dimension text on a large sheet becomes legible for the AI."""
+    from PIL import Image, ImageOps
+    Image.MAX_IMAGE_PIXELS = None
+    W, H = page["w"], page["h"]
+    x0, y0, x1, y1 = box
+    px, py = (x1 - x0) * pad + 4, (y1 - y0) * pad + 4
+    x0, y0, x1, y1 = max(0, x0 - px), max(0, y0 - py), min(W, x1 + px), min(H, y1 + py)
+    o = page.get("orig") or {}
+    src = Path(input_dir) / o["file"] if o.get("file") else None
+    img = None
+    try:
+        if src is not None and src.exists() and "pdf_page" in o:
+            import pypdfium2 as pdfium
+            pw, ph = o["pt"]
+            l, t, r, b = x0 / W * pw, y0 / H * ph, x1 / W * pw, y1 / H * ph
+            scale = min(8.0, max(1.0, max_side / max(r - l, b - t)))
+            pg = pdfium.PdfDocument(str(src))[o["pdf_page"]]
+            img = pg.render(scale=scale, crop=(l, ph - b, pw - r, t), fill_color=(255, 255, 255, 255)).to_pil()
+        elif src is not None and src.exists() and o.get("w"):
+            im = Image.open(src)
+            if o.get("frame"):
+                im.seek(o["frame"])
+            f = o["w"] / W
+            img = im.crop((int(x0 * f), int(y0 * f), int(x1 * f), int(y1 * f)))
+            if img.mode == "1":
+                img = img.convert("L")
+    except Exception:
+        img = None
+    if img is None:     # no original (DXF, old projects): the page image itself
+        img = Image.open(Path(input_dir) / page["file"]).crop((int(x0), int(y0), int(x1), int(y1)))
+    img = img.convert("RGB")
+    if max(img.size) > max_side:
+        s = max_side / max(img.size)
+        img = img.resize((max(1, round(img.width * s)), max(1, round(img.height * s))), Image.LANCZOS)
+    img = ImageOps.autocontrast(img, cutoff=0.5)
+    img.save(out)
+    # page px per crop px, and the crop's origin on the page, to map points back
+    return {"path": str(out), "origin": [x0, y0], "page_per_px": (x1 - x0) / img.width, "size": list(img.size)}
 
 
 def norm_box_to_px(box, W, H):

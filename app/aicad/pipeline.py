@@ -100,6 +100,23 @@ def read_drawing(job, p: Project, extra: str):
                  {"role": "user", "content": "That was not one valid JSON object. Return only the JSON object."}]
         raw = specmod.parse_json(ask(job, msgs, "repair", max_tokens=8192, temperature=0.2))
     sp = specmod.normalize(raw)
+    # graphic scale bars: measured on the sheet, the AI's points are only a hint
+    if sp.get("scale_bars"):
+        from . import scalebar
+        W, H = page["w"], page["h"]
+        for k, b in enumerate(sp["scale_bars"]):
+            try:
+                r = scalebar.refine(job, ask, p.dir / "input", page, p.dir / "input" / "bars",
+                                    [b["p1"][0] / 1000 * W, b["p1"][1] / 1000 * H],
+                                    [b["p2"][0] / 1000 * W, b["p2"][1] / 1000 * H], b["length_mm"], tag=f"bar{k + 1}")
+            except Exception as e:
+                r = None
+                job.log(f"The scale bar could not be measured ({e}).", "warn")
+            if r:
+                b.update(p1=[r["p1"][0] / W * 1000, r["p1"][1] / H * 1000], p2=[r["p2"][0] / W * 1000, r["p2"][1] / H * 1000],
+                         length_mm=r["length_mm"], how=r["how"])
+                job.log(f"Scale bar {k + 1}: {r['length_mm']:.0f} mm over {vision.dist(r['p1'], r['p2']):.0f} px "
+                        f"= {r['mm_per_px']:.4f} mm/px ({r['how']}).")
     p.write_json("spec.json", sp)
     res = resolve_and_save(p, sp)
     nd, ne = len(sp["dimensions"]), len(sp["estimates"])

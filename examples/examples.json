@@ -202,5 +202,71 @@
    "parts": 1
   },
   "text": "Stepped shaft along the X axis, starting at x = 0: diameter 40 mm for 60 mm, then diameter 50 mm for 150 mm, then diameter 45 mm for 40 mm, then diameter 35 mm for 70 mm. 1 mm chamfers on both end faces. A keyway 10 mm wide, 5 mm deep and 50 mm long, centred on the 50 mm section, on top (+Z)."
+ },
+ {
+  "id": "turbine_unit",
+  "title": "Turbine and generator unit, 1925 (hard)",
+  "description": "Real drawing, HAER AL-47-A (Wilson Dam): half section of a 35,000 hp Francis turbine and generator. No dimensions at all - sizes only from the graphic scale bars; two scales on one sheet.",
+  "drawing": "turbine_unit/turbine_generator_unit.tif",
+  "drawings": [
+   "turbine_unit/turbine_generator_unit.tif"
+  ],
+  "text": "Model the turbine and generator unit as a layout model: generator, exciter, shaft, Francis runner, wicket gates and stay vanes, spiral distributor, draft tube and the surrounding concrete.",
+  "hard": true,
+  "source": "Historic American Engineering Record (HAER), National Park Service; Library of Congress, Prints & Photographs Division. Public domain (no known restrictions), via Wikimedia Commons.",
+  "reference": "turbine_unit/reference.py",
+  "thumb": "turbine_unit/thumb.png",
+  "truth": {
+   "size": [
+    25905.097,
+    18000.0,
+    28390.0
+   ],
+   "volume": 5042973628373.42,
+   "solids": 112,
+   "parts": 9
+  },
+  "mode": "assembly"
+ },
+ {
+  "id": "steel_truss",
+  "title": "Steel deck truss, erection plan (hard)",
+  "description": "Real drawing, HAER FL-12 (Apalachicola River Bridge): photograph of a 1934 erection plan - two Warren trusses, top and bottom laterals, sway frames; feet-and-inch dimensions, member marks.",
+  "drawing": "steel_truss/truss_span1.jpg",
+  "drawings": [
+   "steel_truss/truss_span1.jpg"
+  ],
+  "text": "",
+  "hard": true,
+  "source": "Historic American Engineering Record (HAER), National Park Service; Library of Congress, Prints & Photographs Division. Public domain (no known restrictions), via Wikimedia Commons.",
+  "reference": "steel_truss/reference.py",
+  "thumb": "steel_truss/thumb.png",
+  "truth": {
+   "size": [
+    51511.2,
+    5786.4,
+    8273.7544
+   ],
+   "volume": 7463413166.072,
+   "solids": 131,
+   "parts": 5
+  },
+  "mode": "assembly"
+ },
+ {
+  "id": "turbine_building",
+  "title": "Turbine building, three sheets (hard)",
+  "description": "Real drawing set, HAER CT-185-C (Haddam Neck plant): turbine support outline, machine location sections and the operating floor plan; 21,600 x 13,000 px scans, feet-and-inch dimensions.",
+  "drawing": "turbine_building/turbine_support_outline.tif",
+  "drawings": [
+   "turbine_building/turbine_support_outline.tif",
+   "turbine_building/machine_sections_s10.tif",
+   "turbine_building/plan_operating_floor_s9.tif"
+  ],
+  "text": "Layout model of the turbine-generator support (pedestal), the machines on it and the operating floor.",
+  "hard": true,
+  "source": "Historic American Engineering Record (HAER), National Park Service; Library of Congress, Prints & Photographs Division. Public domain (no known restrictions), via Wikimedia Commons.",
+  "thumb": "turbine_building/thumb.png",
+  "mode": "assembly"
  }
 ]

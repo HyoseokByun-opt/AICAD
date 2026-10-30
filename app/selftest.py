@@ -105,7 +105,26 @@ def main():
         return ", ".join(out)
     check("Drawing import (PDF, DXF, PNG)", ingest_all)
 
+    def lengths():
+        from aicad.units import parse_length, scale_factor
+        cases = [("18'-10 1/2\"", 5753.1), ("EL. 59'-6\"", 18135.6), ("3/8\"", 9.525), ("Ø250", 250.0),
+                 ("1.5 m", 1500.0), ("168'-0\"", 51206.4), ("7 3/4\"", 196.85), ("6'-2 3/4\"", 1898.65)]
+        for t, e in cases:
+            v = parse_length(t)
+            assert v is not None and abs(v - e) < 0.01, (t, v, e)
+        assert abs(scale_factor("3/8\" = 1'-0\"") - 32) < 1e-9 and abs(scale_factor("1:50") - 50) < 1e-9
+        return f"{len(cases)} feet-inch / metric texts and 2 scale notes converted exactly"
+    check("Lengths as written on drawings", lengths)
+
     if not quick:
+        def library():
+            from aicad import lib_checks
+            res = lib_checks.run(w, tmp)
+            bad = [f"{n}: {m}" for n, ok, m, _ in res if not ok]
+            assert not bad, "; ".join(bad)
+            return f"{len(res)} building blocks (steel sections, frames, outlines, revolve, piping, vessels, blade rows, assembly)"
+        check("Modelling library", library)
+
         # -------------------------------------------------------- references
         for ex in ex_index:
             def ref(ex=ex):
