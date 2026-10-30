@@ -296,7 +296,9 @@ def repair_user(code: str, err: dict) -> str:
                      "cutThruAll(), hole() and fillet() must be chained on the solid itself "
                      "(body = body.faces('>Z').workplane().circle(r).cutThruAll()).")
     if "timed out" in e or "did not finish" in e:
-        hints.append("The script is too slow: avoid huge patterns and loops of booleans; combine features.")
+        hints.append("The script is too slow: avoid huge patterns and loops of booleans (union/cut inside a loop); "
+                     "collect many separate pieces with lib.compound(...) instead of fusing them, model repeated "
+                     "members once per row, and leave out small details such as bolts and rivets.")
     if hints:
         s += "Hints: " + " ".join(hints) + "\n"
     s += ("\nCorrect the script. Keep the parameter block, the parameter names and the design intent. "

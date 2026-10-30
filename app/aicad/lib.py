@@ -117,11 +117,18 @@ def prism(points_xy, z0, z1):
     return cq.Workplane("XY", origin=(0, 0, min(z0, z1))).polyline(pts).close().extrude(abs(z1 - z0))
 
 
-def extrude_on(plane, points, d0, d1):
+def extrude_on(plane, points, d0=None, d1=None, **kw):
     """An outline drawn in an elevation or section, extruded across it.
     plane 'XZ': points are (x, z), extruded from y=d0 to y=d1;
     plane 'YZ': points are (y, z), extruded from x=d0 to x=d1;
-    plane 'XY': points are (x, y), extruded from z=d0 to z=d1."""
+    plane 'XY': points are (x, y), extruded from z=d0 to z=d1.
+    The limits may also be given by the name of the axis: y0=..., y1=... (or x0/x1, z0/z1)."""
+    ax = {"XZ": "y", "YZ": "x", "XY": "z"}.get(plane.upper(), "y")
+    d0 = kw.pop(ax + "0", d0)
+    d1 = kw.pop(ax + "1", d1)
+    if d0 is None or d1 is None or kw:
+        raise TypeError(f"extrude_on('{plane}', points, {ax}0, {ax}1): give the two limits along {ax.upper()}"
+                        + (f"; unknown arguments {sorted(kw)}" if kw else ""))
     pts = [(float(a), float(b)) for a, b in points]
     lo, hi = min(d0, d1), max(d0, d1)
     if plane.upper() == "XY":

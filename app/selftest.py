@@ -113,7 +113,16 @@ def main():
             v = parse_length(t)
             assert v is not None and abs(v - e) < 0.01, (t, v, e)
         assert abs(scale_factor("3/8\" = 1'-0\"") - 32) < 1e-9 and abs(scale_factor("1:50") - 50) < 1e-9
-        return f"{len(cases)} feet-inch / metric texts and 2 scale notes converted exactly"
+        # a legend entry takes the place of its callout on the drawing; a scale note is not a size
+        from aicad import assembly
+        labels = [{"text": "A PILOT EXCITER", "at": [900, 100]}, {"text": "13 FRANCIS TURBINE", "at": [900, 130]},
+                  {"text": "A", "at": [300, 80]}, {"text": "13", "at": [310, 700]}, {"text": "LAMP", "at": [320, 20]}]
+        placed = {lb["text"]: lb["at"] for lb in assembly._placed_labels(labels)}
+        assert placed == {"LAMP": [320, 20], "PILOT EXCITER [A]": [300, 80], "FRANCIS TURBINE [13]": [310, 700]}, placed
+        rd = {"dimensions": [], "notes": []}
+        assembly._merge_reading(rd, None, {"dimensions": [{"text": "3/8\" = 1'-0\""}, {"text": "4'-6\""}]}, "ft-in")
+        assert [d["text"] for d in rd["dimensions"]] == ["4'-6\""] and rd["notes"] == ["3/8\" = 1'-0\""], rd
+        return f"{len(cases)} feet-inch / metric texts and 2 scale notes converted exactly; legend callouts placed"
     check("Lengths as written on drawings", lengths)
 
     if not quick:

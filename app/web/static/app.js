@@ -554,7 +554,7 @@
       <li>Type a command in the line under the 3D view (or click it here or on the ribbon) and press Enter.</li>
       <li>Answer the prompts: click a face, edges or a ${asm ? "component" : "body"} in the 3D view, type values.</li>
       <li><b>Enter</b> takes the value in &lt; &gt;; several values at once: <span class="mono">d=12 depth=20</span>.</li>
-      <li><b>Esc</b> cancels; <b>Enter</b> on an empty line repeats the last command.</li>
+      <li><b>Esc</b> cancels; <b>Enter</b> on an empty line repeats the last command; <b>Tab</b> completes a command name.</li>
       <li>Each command becomes a feature in <b>History</b>: double-click to change its values, suppress or delete it.</li>
       <li><b>Ctrl+Z / Ctrl+Y</b> step back and forward through the versions.</li></ol>`);
     const rows = Object.entries(window.CAD.commands).map(([k, c]) => `<tr><td><button class="btn sm" data-cmd="${k}">${k}</button></td>

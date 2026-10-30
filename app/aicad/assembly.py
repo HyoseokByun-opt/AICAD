@@ -101,7 +101,7 @@ def survey_page(job, p: Project, idx: int) -> dict:
     sheet = {"page": idx, "id": f"S{idx + 1}", "file": page["file"], "title": str(sh.get("title") or ""),
              "number": str(sh.get("number") or ""), "kind": str(sh.get("kind") or ""), "units": unit,
              "scale_text": raw.get("scale_text"), "summary": str(raw.get("summary") or ""),
-             "objects": [str(o) for o in (raw.get("objects") or [])][:20], "views": [], "scale_bars": [], "tables": []}
+             "objects": [str(o) for o in _as_list(raw.get("objects"))][:20], "views": [], "scale_bars": [], "tables": []}
     boxes, views = [], []
     for k, v in enumerate(raw.get("views") or []):
         if not isinstance(v, dict) or not isinstance(v.get("box"), (list, tuple)) or len(v["box"]) < 4:
@@ -217,12 +217,22 @@ def read_view(job, p: Project, sheet: dict, view: dict) -> dict:
     unit = sheet["units"]
     rd = {"view": view["id"], "crop": crop, "tiles": len(tiles), "dimensions": [], "levels": [], "grid": [],
           "labels": [], "members": [], "shapes": " ".join(str(r.get("shapes") or "") for _, r in raws)[:1500],
-          "notes": [str(n) for _, r in raws for n in (r.get("notes") or [])][:30]}
+          "notes": [str(n) for _, r in raws for n in _as_list(r.get("notes"))][:30]}
     for crop, raw in raws:
         _merge_reading(rd, crop, raw, unit)
     job.log(f"  {view['id']} ({view['type']}): {len(rd['dimensions'])} dimensions, {len(rd['levels'])} levels, "
             f"{len(rd['labels'])} labels, {len(rd['members'])} members.")
     return rd
+
+
+def _as_list(v):
+    """A list answer that the AI may also give as one string (or leave out)."""
+    if not v:
+        return []
+    return v if isinstance(v, list) else [v]
+
+
+SCALE_NOTE = re.compile(r"=|\bscale\b|\bNTS\b", re.I)
 
 
 def _near(a, b, tol=25.0):
@@ -242,6 +252,10 @@ def _merge_reading(rd, crop, raw, unit):
         p1, p2 = _crop_pt(d.get("p1") or [], crop), _crop_pt(d.get("p2") or [], crop)
         t = str(d.get("text") or "")
         if seen("dimensions", t, p1):
+            continue
+        if SCALE_NOTE.search(t):          # a scale note such as 3/8" = 1'-0" is not a size of the object
+            if t not in rd["notes"]:
+                rd["notes"].append(t)
             continue
         rd["dimensions"].append({"text": t, "mm": round(L, 2) if L else None,
                                  "describes": str(d.get("describes") or ""), "axis": d.get("axis"), "p1": p1, "p2": p2})
@@ -349,6 +363,42 @@ def view_scale(sheet: dict, view: dict, reading: dict | None, calib=None, bars=T
 
 
 # ------------------------------------------------------------------ digest, contact sheet
+LEGEND = re.compile(r"^\s*([A-Z]|\d{1,2})\s*[.):-]?\s+([A-Za-z].{2,})$")
+
+
+def _placed_labels(labels):
+    """Labels in the order they help the plan, each at the place of the part it names.
+
+    A legend entry ("A PILOT EXCITER", "13 FRANCIS TURBINE") sits in the legend
+    table; the part itself is where its callout ("A", "13") is drawn. Such
+    entries take the position of their callout. Names come first, callouts
+    that were not matched and single letters last; a legend entry without a
+    callout keeps no position."""
+    legend = {}
+    for lb in labels:
+        m = LEGEND.match(lb["text"])
+        if m:
+            legend.setdefault(m.group(1), []).append(lb)
+    used, out = set(), []
+    for key, entries in legend.items():
+        calls = [c for c in labels if c["text"].strip() == key and c.get("at")
+                 and not any(_near(c["at"], e.get("at"), 120.0) for e in entries)]
+        for e in entries:
+            used.add(id(e))
+            name = LEGEND.match(e["text"]).group(2).strip()
+            if calls:
+                for c in calls:
+                    used.add(id(c))
+                    out.append({"text": f"{name} [{key}]", "at": c["at"]})
+            else:
+                out.append({"text": f"{name} [{key}]", "at": None})
+    rest = [lb for lb in labels if id(lb) not in used]
+    rest.sort(key=lambda lb: len(lb["text"].strip()) < 3)
+    names = [lb for lb in rest if len(lb["text"].strip()) >= 3]
+    return names + [o for o in out if o["at"]] + [o for o in out if not o["at"]] + \
+        [lb for lb in rest if len(lb["text"].strip()) < 3]
+
+
 def digest(sheets, readings, scales) -> str:
     L = []
     for sh in sheets:
@@ -358,11 +408,11 @@ def digest(sheets, readings, scales) -> str:
             L.append(sh["summary"])
         for v in sh["views"]:
             sc, src = scales.get(v["id"], (None, None))
-            size = ""
-            if sc:
-                size = f", view {(v['box'][2] - v['box'][0]) * sc:.0f} x {(v['box'][3] - v['box'][1]) * sc:.0f} mm"
+            # without a scale, sizes and positions are given in sheet pixels (f = 1): a size stated in words fixes them
+            f, unit = (sc, "mm") if sc else (1.0, "px")
+            size = f", view {(v['box'][2] - v['box'][0]) * f:.0f} x {(v['box'][3] - v['box'][1]) * f:.0f} {unit}"
             L.append(f"### View {v['id']} {v['type']} '{v['label']}'" + (f" [{v['level_or_cut']}]" if v.get("level_or_cut") else "")
-                     + (f" scale {sc:.4g} mm/px ({src}){size}" if sc else " (no scale)"))
+                     + (f" scale {sc:.4g} mm/px ({src}){size}" if sc else f" (no scale; sizes in sheet pixels){size}"))
             rd = readings.get(v["id"])
             if not rd:
                 continue
@@ -381,7 +431,11 @@ def digest(sheets, readings, scales) -> str:
                     ms.append(f"{m['mark']} {m['section']}{ln}".strip())
                 L.append("members: " + "; ".join(ms))
             if rd["labels"]:
-                L.append("labels: " + ", ".join(lb["text"] for lb in rd["labels"][:30]))
+                lbs = _placed_labels(rd["labels"])[:60]
+                b = v["box"]
+                L.append(f"labels at (x, u) {unit} - x from the left edge of the view, u up from its bottom edge: " + "; ".join(
+                    f"{lb['text']} ({(lb['at'][0] - b[0]) * f:.0f}, {(b[3] - lb['at'][1]) * f:.0f})"
+                    if lb.get("at") else lb["text"] for lb in lbs))
             if rd["shapes"]:
                 L.append("shapes: " + rd["shapes"][:600])
             if rd["notes"]:
@@ -436,12 +490,12 @@ def make_plan(job, p: Project, sheets, readings, scales, extra) -> dict:
         except (TypeError, ValueError):
             mn, mx = None, None
         comps.append({"id": _ident(c.get("id") or c.get("name"), used), "name": str(c.get("name") or f"Component {k + 1}"),
-                      "kind": str(c.get("kind") or "other"), "views": [str(v).upper() for v in (c.get("views") or [])],
+                      "kind": str(c.get("kind") or "other"), "views": [str(v).upper() for v in _as_list(c.get("views"))],
                       "min": mn, "max": mx, "description": str(c.get("description") or ""),
                       "color": str(c.get("color") or COLORS[k % len(COLORS)])})
     plan = {"name": re.sub(r"[^\w\- ]+", "", str(raw.get("name") or p.data.get("name") or "assembly"))[:60],
             "datum": str(raw.get("datum") or ""), "overall": raw.get("overall") or {},
-            "components": comps[:40], "notes": [str(n) for n in (raw.get("notes") or [])][:20]}
+            "components": comps[:40], "notes": [str(n) for n in _as_list(raw.get("notes"))][:20]}
     p.write_json("assembly/plan.json", plan)
     job.log(f"Plan: '{plan['name']}', {len(comps)} components. Datum: {plan['datum'][:120]}", "ok")
     return plan
@@ -484,10 +538,17 @@ def build_component(job, p: Project, comp, code):
     d = p.dir / "assembly" / "components" / comp["id"]
     d.mkdir(parents=True, exist_ok=True)
     (d / "model.py").write_text(code, encoding="utf-8")
+    n = len(list(d.glob("attempt_*.py"))) + 1        # every attempt is kept for the record
+    (d / f"attempt_{n}.py").write_text(code, encoding="utf-8")
     r = worker().build(code, d, views=["iso"], hlr=False, step=False, png=False, stop_event=job.stop)
     if r.get("stopped"):
         raise Stopped()
+    if not r.get("ok"):
+        (d / f"attempt_{n}.error.txt").write_text(f"line {r.get('line')}: {r.get('error')}\n", encoding="utf-8")
     return r
+
+
+ENVELOPE_FIX = 0.5      # a component further off its planned box than this (fraction of its size) is corrected once
 
 
 def envelope_check(comp, r):
@@ -513,6 +574,19 @@ def do_component(job, p: Project, plan, comp, readings, scales, extra, instructi
         new = prompts.extract_code(ask(job, msgs, "repair", max_tokens=8000, temperature=0.4))
         r2 = build_component(job, p, comp, new)
         if r2.get("ok") or not r.get("ok"):
+            code, r = new, r2
+    # built, but far from its place in the plan: one round to move and size it into the planned box
+    off = envelope_check(comp, r)
+    if off is not None and off > ENVELOPE_FIX and k < tries:
+        k += 1
+        bb = r["metrics"]["bbox"]
+        job.log(f"  {comp['id']}: built {off * 100:.0f} % off its planned box; correcting the placement.", "warn")
+        msgs = [{"role": "system", "content": PA.COMPONENT_SYSTEM + "\n\n" + PA.COMPONENT_RULES},
+                {"role": "user", "content": PA.envelope_user(code, comp, bb)}]
+        new = prompts.extract_code(ask(job, msgs, "repair", max_tokens=8000, temperature=0.4))
+        r2 = build_component(job, p, comp, new)
+        off2 = envelope_check(comp, r2)
+        if r2.get("ok") and not r2.get("lint") and off2 is not None and off2 < off:
             code, r = new, r2
     st = {"ok": bool(r.get("ok")), "error": r.get("error"), "metrics": r.get("metrics"),
           "envelope_offset": envelope_check(comp, r), "attempts": k + 1}

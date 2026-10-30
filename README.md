@@ -150,7 +150,7 @@ step, for what it needs: a face or edges clicked in the 3D view, and values type
 - **Enter** takes the default shown in `< >`; Enter on an empty line repeats the last command; **Esc** cancels.
 - Several values can be given at once as `key=value`, e.g. `pad shape=circle w=30 height=25` or
   `hole d=13.5 count=4 pitch=0,60,0`. The position is the clicked point, or `at=x,y,z`, shifted by `offset=dx,dy,dz`.
-- ↑ and ↓ recall earlier commands; **Ctrl+Z** and **Ctrl+Y** undo and redo.
+- **Tab** completes a command name; ↑ and ↓ recall earlier commands; **Ctrl+Z** and **Ctrl+Y** undo and redo.
 
 | Command (alias) | Picks | Values |
 |---|---|---|

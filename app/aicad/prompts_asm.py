@@ -84,6 +84,11 @@ Rules:
   component each. Separate parts that differ in kind (foundation, frame, machine, piping, platform).
 - Sizes come from the readings (already converted to mm where a scale is known). Where a size is not written,
   estimate it from the drawing proportions and say so in the description.
+- Labels come with their position measured on the view (x, u in mm from the lower left corner of the view). Use
+  them to place the labelled parts: in an elevation or section, a larger u is higher (larger z) and the difference
+  of two u values is their height difference; in a plan, u runs along +Y. Keep the order of parts as drawn.
+- A view without a scale gives its size and positions in sheet pixels. Take the scale from a size stated in the
+  request (mm per pixel = stated size / its length in pixels on the view) and convert every other size with it.
 - A layout model shows envelopes and main features; internal details that do not change the outer shape are left out.
 """
 
@@ -148,3 +153,14 @@ def component_user(comp: dict, plan: dict, readings: str, extra: str) -> str:
     if extra:
         s += "\n\nInformation from the user (takes precedence):\n" + extra
     return s
+
+
+def envelope_user(code: str, comp: dict, bbox) -> str:
+    """The component built, but not where the plan puts it."""
+    f = lambda v: "[" + ", ".join(f"{x:.0f}" for x in v) + "]"  # noqa: E731
+    return (f"This script for component {comp['id']} - {comp['name']} builds, but the solid lies outside its place in "
+            f"the plan.\nPlanned bounding box: min {f(comp['min'])} max {f(comp['max'])} (mm)\n"
+            f"Built bounding box:   min {f(bbox[:3])} max {f(bbox[3:6])} (mm)\n"
+            "Correct the parameters (positions, sizes, the axis direction) so that the solid fills the planned box, "
+            "unless the drawing clearly shows otherwise. Keep the way it is built. Return the complete corrected "
+            f"script.\n\n```python\n{code}\n```")
