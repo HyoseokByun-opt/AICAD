@@ -18,20 +18,34 @@ from . import vision
 def find_bars(crop_path):
     """Long, flat connected line work in an image: candidate scale bars as
     (x0, y0, x1, y1) in image pixels, longest first."""
+    return _bars_in(vision.load_gray(crop_path), W_ref=None)
+
+
+def _bars_in(g, W_ref=None, depth=0):
     import cv2
-    g = vision.load_gray(crop_path)
     m = cv2.dilate(vision.ink(g), np.ones((3, 3), np.uint8), iterations=1)
     n, lab, st, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
     H, W = g.shape
+    W_ref = W_ref or W
     out = []
     for i in range(1, n):
         x, y, w, h, a = st[i]
-        if w >= 0.08 * W and w >= 4 * h and h >= 3 and a >= 0.02 * w * h:
+        if w >= 0.08 * W_ref and w >= 4 * h and h >= 3 and a >= 0.02 * w * h:
             comp = lab[y:y + h, x:x + w] == i
             # a scale bar has several vertical strokes (ticks, box edges) across its
             # height; a dimension line has at most its two ends
             cov = comp.mean(axis=0) >= 0.6
             strokes = int(np.count_nonzero(np.diff(cov.astype(np.int8)) == 1) + (1 if cov[0] else 0))
+            rows = comp.mean(axis=1)
+            if strokes < 3 and depth == 0 and h >= 20 and rows[:4].max() > 0.9 and rows[-4:].max() > 0.9:
+                # a frame drawn round the bar (a ruler with its scale note): look inside it,
+                # without the frame lines
+                inset = 6
+                inner = g[y + inset:y + h - inset, x + inset:x + w - inset].copy()
+                if inner.size:
+                    for b in _bars_in(inner, W_ref, depth + 1):
+                        out.append([b[0] + x + inset, b[1] + y + inset, b[2] + x + inset, b[3] + y + inset, 3])
+                continue
             if strokes >= 2:
                 out.append([int(x) + 1, int(y), int(x + w) - 1, int(y + h), strokes])
     # a faint print breaks a bar into pieces: join pieces on the same height

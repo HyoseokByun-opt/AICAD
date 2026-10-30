@@ -288,6 +288,26 @@ def _box_dist(pt, box):
     return math.hypot(dx, dy)
 
 
+def _bar_scale(sheet, view, bars, readings):
+    """The scale of a view from the bars drawn with it. Bars that agree
+    (feet and metres within 10 %) give their median; when they disagree, a
+    bar measured on the sheet beats one placed by the AI, and the dimensions
+    read in the view decide between the rest."""
+    vals = [b["mm_per_px"] for b in bars]
+    if max(vals) / min(vals) <= 1.10:
+        return statistics.median(vals), "graphic scale bar"
+    measured = [b for b in bars if str(b.get("how", "")).startswith("measured")]
+    if measured and (len(measured) == 1 or max(b["mm_per_px"] for b in measured) / min(b["mm_per_px"] for b in measured) <= 1.10):
+        return statistics.median(b["mm_per_px"] for b in measured), "graphic scale bar (measured)"
+    cand = measured or bars
+    sc, _ = view_scale(sheet, view, readings.get(view["id"]) if readings else None, None, bars=False)
+    if sc:
+        b = min(cand, key=lambda b: abs(math.log(b["mm_per_px"] / sc)))
+        return b["mm_per_px"], f"graphic scale bar (of {len(bars)} that disagree, the one closest to the dimensions)"
+    b = max(cand, key=lambda b: vision.dist(b["p1"], b["p2"]))
+    return b["mm_per_px"], f"graphic scale bar (the longest of {len(bars)} that disagree)"
+
+
 def sheet_scales(sheet: dict, readings: dict, calib=None) -> dict:
     """mm per page pixel of every view of a sheet, with its source.
 
@@ -309,7 +329,7 @@ def sheet_scales(sheet: dict, readings: dict, calib=None) -> dict:
             owner.setdefault(v["id"], []).append(b)
     for v in views:
         if owner.get(v["id"]):
-            out[v["id"]] = (statistics.median(b["mm_per_px"] for b in owner[v["id"]]), "graphic scale bar")
+            out[v["id"]] = _bar_scale(sheet, v, owner[v["id"]], readings)
     sheet_f = U.scale_factor(sheet.get("scale_text") or "")
     for v in views:
         if v["id"] in out:
