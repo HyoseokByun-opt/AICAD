@@ -409,11 +409,29 @@ class Engine:
                         content.append(d["content"])
                         if on_token:
                             on_token("text", d["content"])
+                        if len(content) % 64 == 0 and _looping("".join(content[-400:])):
+                            finish = "repetition"
                     if c.get("finish_reason"):
                         finish = c["finish_reason"]
+                if finish == "repetition":
+                    break        # closing the stream ends the generation in the engine
         self.last_used = time.time()
         return {"content": "".join(content), "reasoning": "".join(reasoning), "timings": timings,
                 "finish": finish, "stopped": bool(stop is not None and stop.is_set())}
+
+
+def _looping(tail: str) -> bool:
+    """A small model sometimes repeats the same lines until the token limit
+    (minutes of output on a CPU). True when the last 30 lines hold no more
+    than 3 different lines, or the tail is one block repeated four times."""
+    lines = [ln.strip() for ln in tail.splitlines() if ln.strip()]
+    if len(lines) >= 30 and len(set(lines[-30:])) <= 3:
+        return True
+    t = tail[-1600:]
+    for p in range(20, 401):
+        if len(t) >= 4 * p and t[-p:] == t[-2 * p:-p] == t[-3 * p:-2 * p] == t[-4 * p:-3 * p]:
+            return True
+    return False
 
 
 def image_part(path) -> dict:

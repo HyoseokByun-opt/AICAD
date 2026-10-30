@@ -44,9 +44,19 @@ def _ask_json(job, msgs, stage, max_tokens=8000):
         return specmod.parse_json(text)
     except ValueError as e:
         job.log(f"The answer was not valid JSON ({e}); asking again.", "warn")
-        msgs = msgs + [{"role": "assistant", "content": text[-6000:]},
-                       {"role": "user", "content": "That was not one valid JSON object. Return only the JSON object."}]
-        return specmod.parse_json(ask(job, msgs, "repair", max_tokens=max_tokens, temperature=0.1))
+        # asked afresh (a broken or repeating answer is not shown again), with a request to be brief
+        last = dict(msgs[-1])
+        note = ("\n\nAnswer with one complete JSON object. Keep it short: list every item once, at most 60 items "
+                "per list, no repetitions.")
+        if isinstance(last.get("content"), list):
+            last["content"] = [dict(x) for x in last["content"]]
+            first_text = next((x for x in last["content"] if x.get("type") == "text"), None)
+            if first_text is not None:
+                first_text["text"] += note
+        else:
+            last["content"] = str(last.get("content", "")) + note
+        return specmod.parse_json(ask(job, msgs[:-1] + [last], "repair", max_tokens=min(max_tokens, 6000),
+                                      temperature=0.1))
 
 
 def _pt(p, W, H):

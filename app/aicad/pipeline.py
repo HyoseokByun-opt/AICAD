@@ -55,6 +55,8 @@ def ask(job, messages, stage: str, max_tokens=8192, temperature=0.6):
                 f"prompt {int(t.get('prompt_n', 0))} tokens at {t.get('prompt_per_second', 0):.0f} tok/s")
     if r.get("finish") == "length":
         job.log("The answer reached the token limit and may be cut off.", "warn")
+    elif r.get("finish") == "repetition":
+        job.log("The answer started repeating itself and was stopped.", "warn")
     return r["content"]
 
 
