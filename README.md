@@ -21,6 +21,7 @@
   <a href="#software-description">Description</a> ·
   <a href="#workflow">Workflow</a> ·
   <a href="#cad-editing">CAD editing</a> ·
+  <a href="#analysis-model-beams-and-shells">Analysis model</a> ·
   <a href="#hardware-and-models">Hardware and models</a> ·
   <a href="#installation">Installation</a> ·
   <a href="#usage">Usage</a> ·
@@ -79,6 +80,9 @@ The main capabilities are listed below.
   and patterns), pocket, pad, fillet, chamfer, shell, box, cylinder, move, rotate, mirror, array and delete. Each
   command becomes a parametric feature of the model script, listed in a feature history where it can be edited,
   suppressed or deleted; undo and redo work on the versions.
+- **Analysis model.** Besides the solid, a beam and shell model for structural analysis: members and pipes become
+  beams (centre line and section), thin walls become shells (mid-surface and thickness), written as STEP and as an
+  input deck for a finite element solver (see [Analysis model](#analysis-model-beams-and-shells)).
 - **Viewing.** Interactive 3D view with Z up, orthographic and perspective projection, shaded, edge, wireframe and
   see-through styles, a section plane with coloured cut faces, face picking (plane normal, cylinder diameter and
   axis, cone angle, area), point-to-point measurement, overall dimensions and the six standard views.
@@ -169,6 +173,39 @@ point (the nearest face or edge of the current solid is taken), so features usua
 up change; a feature whose point no longer lies on the intended face is corrected in the History. The **History** tab on the right lists the features: double-click (or ✎) to edit the values, ○ to
 suppress, ✕ to delete. The model is rebuilt without the AI in about a second.
 
+## Analysis model (beams and shells)
+
+<p align="center">
+  <img src="docs/images/ui_analysis.png" alt="Beam and shell model of a pipe tower with a tank" width="100%">
+</p>
+
+Structures of pipes and rolled sections, frames, platforms and vessels are usually analysed with beam and shell
+elements rather than with solid elements. **Export → Analysis model** derives such a model from the solids of the
+current version, the way an analyst idealises a structure by hand:
+
+| Solid | Becomes | Properties |
+|---|---|---|
+| Straight member of constant section (rolled section, bar, tube) longer than 4 times its section | beam on the centre line | section measured on the end face: rod, pipe, rectangle, box and I shapes recognised; area, second moments and torsion constant for any section |
+| Pipe run of straight pieces and bends (cylinders and tori) | chain of straight and curved beams | pipe or rod section |
+| Thin wall: two faces at a small, constant distance (plate, sheet, vessel shell, dished head, duct) | shell on the mid-surface | thickness measured between the faces |
+| Ball at a pipe joint | left out (the pipes meet at its centre) | |
+| Anything else (castings, blocks, machines) | kept as a solid | to be meshed with solid elements from the STEP file |
+
+Pipes can be taken either as beams or as shells. A member that stops at the side of another member (a beam at the
+face of a column) is joined to that member's centre line, and beam ends that lie on a mid-surface become nodes of
+the shell mesh, so the parts of the model are connected. The output is a STEP file with the centre lines, the
+mid-surfaces and the remaining solids, named per component; an input deck in the keyword format of
+[CalculiX](http://www.calculix.de/) with nodes, B31 beam elements, S3 shell elements, the sections and steel as
+material (pipe, rod, rectangle and box as standard sections, other shapes as general sections with area, second
+moments and torsion constant); and a section table (CSV) with length, area, moments, thickness and mass of every
+member and wall. The model is drawn over the see-through solids in the 3D view. Supports, loads and the analysis
+step are added in the solver or pre-processor.
+
+Limits: shells are not joined to each other along their edges (two plates meeting at a corner keep their mid-surface
+gap of half a thickness), crossing members without a common end are not connected, and curved shells are meshed
+from the surface tessellation. Library vessels are hollow only when their wall thickness is given (`lib.vessel(...,
+t=12)`); otherwise they are solid envelopes.
+
 ## Hardware and models
 
 The AI engine is llama.cpp with CUDA 12.4 (Vulkan and CPU builds are included as well). The model is chosen
@@ -224,20 +261,30 @@ wheels and the llama.cpp builds into the folder; continue with step 2.
 | Change a size | **Parameters** (right panel) → *Apply* |
 | Add a hole, pocket, fillet ... by hand | Type the command (or **Edit** tab), click the face, type the values |
 | Change or remove a hand-made feature | **History** (right panel): double-click, hide, delete; Ctrl+Z |
+| Beam and shell model for analysis | Export tab → *Analysis model* → *Create analysis model* |
 | Change the design in words | AI tab → *Change the model by instruction* |
 | Improve agreement with the drawing | Compare tab → *Refine against drawing* |
 | Measure the model | 3D toolbar → *Measure*; click a face for its geometry |
 | Export | Export tab → STEP, STL, glTF, BREP, DXF, code |
 
-Eleven examples are included (Home → Examples). Six are synthetic drawings with known answers: a base plate (raster),
-a pipe flange (vector PDF), an L bracket whose wall thickness is not dimensioned, a pump skid assembly (DXF), and two
-descriptions (a vertical vessel and a stepped shaft). Five are real drawings in the public domain. Four come from the
-Historic American Engineering Record (Library of Congress): the 1925 turbine and generator unit of Wilson Dam (a half
-section without any dimensions, two scales on one sheet), a photographed 1934 erection plan of a steel deck truss,
-three 21 600 x 13 000 px sheets of a nuclear power plant turbine building, and the plan and section of a tanker's
-engine room with about forty machines. The fifth is a 1904 book illustration of a steam pumping engine without any
-dimension or scale, where one size is given in words. The turbine unit and the truss come with a reference layout
-model built with the modelling library.
+Fifteen examples are included (Home → Examples). Seven are synthetic, with known answers: a base plate (raster), a
+pipe flange (vector PDF), an L bracket whose wall thickness is not dimensioned, a pump skid assembly (DXF), and three
+descriptions (a vertical vessel, a stepped shaft, and a tower made only of pipes with a deck and a tank, for the
+analysis model). Eight are real drawings in the public domain:
+
+| Example | Source | What makes it hard |
+|---|---|---|
+| Turbine and generator unit, 1925 | HAER, Wilson Dam | half section without any dimension; two scales on one sheet |
+| Steel deck truss, 1934 | HAER, Apalachicola River Bridge | photograph of an erection plan; feet-inch dimensions; member marks |
+| Turbine building, three sheets | HAER, Haddam Neck plant | 21 600 x 13 000 px scans; pedestal, machines and floor on separate sheets |
+| Ship engine room, two sheets | HAER, tanker Mission Santa Ynez | about forty machines on two levels; the plan runs the other way than the section; halftone background |
+| Inverted V-16 engine, five sheets | US patent 2,468,976 | engine assembly on five sheets of sections and elevations; no scale |
+| Automatic transmission, three sheets | US patent 2,193,304 | planetary gear sets, clutches and bands in section; no scale |
+| Fan-cooled induction motor | US patent 2,449,502 | motor assembly in two sections; no scale |
+| Pumping engine, 1904 | book illustration | one view, no dimension or scale |
+
+Where a drawing has no scale, the request states one size and every other size follows from the proportions. The
+turbine unit and the truss come with a reference layout model built with the modelling library.
 
 ## Verification
 

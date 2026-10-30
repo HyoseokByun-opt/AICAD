@@ -676,6 +676,41 @@ HARD = [
      "reference": False, "text": "Layout model of the engine room and pump room machinery: main propulsion motor and "
                                  "shaft line, main condenser, boiler, turbo-generators, main cargo pumps, the larger "
                                  "auxiliary pumps and tanks, and the flats they stand on."},
+    {"id": "v_engine", "title": "Inverted V-16 engine, five sheets (hard)",
+     "description": "Patent drawings US 2,468,976 (1949): side elevation, transverse and longitudinal sections and "
+                    "plan views of a liquid-cooled inverted V-16 aircraft engine on five sheets - crankcase, cylinder "
+                    "banks, crankshaft, heads, manifolds. No dimensions and no scale; one size is given in words.",
+     "files": [("patents/v_engine_US2468976_sheets1-5.pdf", "v_engine_US2468976_sheets1-5.pdf", None)],
+     "reference": False,
+     "source": "US patent 2,468,976 (A. G. Herreshoff et al., 1949), published without a copyright notice - public "
+               "domain in the United States.",
+     "text": "Layout model of the engine: crankcase, the two inverted cylinder banks of eight cylinders with their "
+             "heads and camshaft covers, crankshaft, oil sump, intake and exhaust manifolds, reduction gear housing "
+             "at the front and accessory housing at the rear. The crankcase is about 2900 mm long (assumed - the "
+             "drawings carry no scale); take every other size from the proportions."},
+    {"id": "transmission", "title": "Automatic transmission, three sheets (hard)",
+     "description": "Patent drawings US 2,193,304 (1940, the first mass-produced automatic transmission): vertical "
+                    "section of the whole gearbox with planetary gear sets, clutches and brake bands, cross sections "
+                    "of the gear trains and the control unit on three sheets. No dimensions and no scale.",
+     "files": [("patents/transmission_US2193304_sheets2-4.pdf", "transmission_US2193304_sheets2-4.pdf", None)],
+     "reference": False,
+     "source": "US patent 2,193,304 (E. A. Thompson, 1940), published without a copyright notice - public domain in "
+               "the United States.",
+     "text": "Layout model of the transmission: case and bell housing, input and output shafts, the planetary gear "
+             "sets with their drums, clutch packs and brake bands, the oil pump and the valve body. The case is about "
+             "750 mm long (assumed - the drawings carry no scale); take every other size from the proportions."},
+    {"id": "motor", "title": "Fan-cooled induction motor (hard)",
+     "description": "Patent drawing US 2,449,502 (1948): longitudinal and transverse sections of a totally enclosed "
+                    "fan-cooled squirrel-cage motor - frame with cooling ribs, stator core and windings, rotor, shaft, "
+                    "end shields with bearings, fan and fan cover. No dimensions and no scale.",
+     "files": [("patents/motor_US2449502_sheet1.pdf", "motor_US2449502_sheet1.pdf", None)],
+     "reference": False,
+     "source": "US patent 2,449,502 (J. H. Penney, 1948), published without a copyright notice - public domain in "
+               "the United States.",
+     "text": "Layout model of the motor: frame with cooling ribs and feet, stator core with end windings, rotor core "
+             "with end rings, shaft, both end shields with bearings, external fan and fan cover. The frame is about "
+             "420 mm in outside diameter (assumed - the drawing carries no scale); take every other size from the "
+             "proportions."},
     {"id": "pumping_engine", "title": "Pumping engine, book illustration (hard)",
      "description": "Real drawing, Holly high-duty pumping engine (New Catechism of the Steam Engine, 1904): one "
                     "sectional elevation without dimensions or scale; the flywheel runs off the top of the picture. "
@@ -730,7 +765,13 @@ def hard_examples(w):
                          truth={"size": r["metrics"]["size"], "volume": r["metrics"]["volume"],
                                 "solids": r["metrics"]["solids"], "parts": r["metrics"]["parts"]})
         else:
-            im = Image.open(EX / names[0])
+            first = EX / names[0]
+            if first.suffix.lower() == ".pdf":
+                import pypdfium2 as pdfium
+                pg = pdfium.PdfDocument(str(first))[0]
+                im = pg.render(scale=640 / max(pg.get_size())).to_pil()
+            else:
+                im = Image.open(first)
             im.thumbnail((640, 640))
             im.convert("L").save(d / "thumb.png")
             entry["thumb"] = f"{ex['id']}/thumb.png"

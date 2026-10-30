@@ -315,5 +315,47 @@
   "mode": "assembly",
   "source": "Hawkins, New Catechism of the Steam Engine (1904). Public domain (published before 1929), via Wikimedia Commons.",
   "thumb": "pumping_engine/thumb.png"
+ },
+ {
+  "id": "v_engine",
+  "title": "Inverted V-16 engine, five sheets (hard)",
+  "description": "Patent drawings US 2,468,976 (1949): side elevation, transverse and longitudinal sections and plan views of a liquid-cooled inverted V-16 aircraft engine on five sheets - crankcase, cylinder banks, crankshaft, heads, manifolds. No dimensions and no scale; one size is given in words.",
+  "drawing": "v_engine/v_engine_US2468976_sheets1-5.pdf",
+  "drawings": [
+   "v_engine/v_engine_US2468976_sheets1-5.pdf"
+  ],
+  "text": "Layout model of the engine: crankcase, the two inverted cylinder banks of eight cylinders with their heads and camshaft covers, crankshaft, oil sump, intake and exhaust manifolds, reduction gear housing at the front and accessory housing at the rear. The crankcase is about 2900 mm long (assumed - the drawings carry no scale); take every other size from the proportions.",
+  "hard": true,
+  "mode": "assembly",
+  "source": "US patent 2,468,976 (A. G. Herreshoff et al., 1949), published without a copyright notice - public domain in the United States.",
+  "thumb": "v_engine/thumb.png"
+ },
+ {
+  "id": "transmission",
+  "title": "Automatic transmission, three sheets (hard)",
+  "description": "Patent drawings US 2,193,304 (1940, the first mass-produced automatic transmission): vertical section of the whole gearbox with planetary gear sets, clutches and brake bands, cross sections of the gear trains and the control unit on three sheets. No dimensions and no scale.",
+  "drawing": "transmission/transmission_US2193304_sheets2-4.pdf",
+  "drawings": [
+   "transmission/transmission_US2193304_sheets2-4.pdf"
+  ],
+  "text": "Layout model of the transmission: case and bell housing, input and output shafts, the planetary gear sets with their drums, clutch packs and brake bands, the oil pump and the valve body. The case is about 750 mm long (assumed - the drawings carry no scale); take every other size from the proportions.",
+  "hard": true,
+  "mode": "assembly",
+  "source": "US patent 2,193,304 (E. A. Thompson, 1940), published without a copyright notice - public domain in the United States.",
+  "thumb": "transmission/thumb.png"
+ },
+ {
+  "id": "motor",
+  "title": "Fan-cooled induction motor (hard)",
+  "description": "Patent drawing US 2,449,502 (1948): longitudinal and transverse sections of a totally enclosed fan-cooled squirrel-cage motor - frame with cooling ribs, stator core and windings, rotor, shaft, end shields with bearings, fan and fan cover. No dimensions and no scale.",
+  "drawing": "motor/motor_US2449502_sheet1.pdf",
+  "drawings": [
+   "motor/motor_US2449502_sheet1.pdf"
+  ],
+  "text": "Layout model of the motor: frame with cooling ribs and feet, stator core with end windings, rotor core with end rings, shaft, both end shields with bearings, external fan and fan cover. The frame is about 420 mm in outside diameter (assumed - the drawing carries no scale); take every other size from the proportions.",
+  "hard": true,
+  "mode": "assembly",
+  "source": "US patent 2,449,502 (J. H. Penney, 1948), published without a copyright notice - public domain in the United States.",
+  "thumb": "motor/thumb.png"
  }
 ]
