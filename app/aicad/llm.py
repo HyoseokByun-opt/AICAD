@@ -12,6 +12,7 @@ import collections
 import ctypes
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -84,6 +85,18 @@ def engines() -> dict:
     return out
 
 
+def _shards_complete(names, fname: str) -> bool:
+    """A model split into shards (name-00001-of-00009.gguf, as in the release
+    parts) is complete when every shard is there; llama-server is given the
+    first and reads the others."""
+    stem = fname[:-5] if fname.lower().endswith(".gguf") else fname
+    shards = [n for n in names if re.fullmatch(re.escape(stem) + r"-\d{5}-of-\d{5}\.gguf", n)]
+    if not shards:
+        return False
+    total = int(re.search(r"-of-(\d{5})\.gguf$", shards[0]).group(1))
+    return all(f"{stem}-{k:05d}-of-{total:05d}.gguf" in names for k in range(1, total + 1))
+
+
 def installed_models() -> list[dict]:
     out = []
     if not MODELS_DIR.exists():
@@ -106,7 +119,9 @@ def installed_models() -> list[dict]:
         complete = True
         if prof:
             names = {g.name for g in ggufs}
-            complete = all(f[0] in names for f in prof["files"])
+            complete = all(f[0] in names or _shards_complete(names, f[0]) for f in prof["files"])
+        elif any("-of-" in g.name for g in main):
+            complete = _shards_complete({g.name for g in ggufs}, re.sub(r"-\d{5}-of-\d{5}", "", main[0].name))
         out.append({
             "id": d.name, "name": meta.get("name") or prof.get("name") or main[0].stem,
             "model": str(main[0]), "mmproj": str(mm[0]) if mm else None,

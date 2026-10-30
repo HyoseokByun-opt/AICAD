@@ -63,9 +63,18 @@ def main():
     print(f"{z.name}: {n} files, {size / 1e9:.2f} GB")
     if size > 2 * 1024 ** 3:
         print("WARNING: larger than the 2 GiB limit of a release asset")
-    sums = [f"{sha256(z)}  {z.name}"]
-    (out / "SHA256SUMS.txt").write_text("\n".join(sums) + "\n")
-    print("\n".join(sums))
+    # the checksums of model parts already in release/ (tools/make_model_parts.py) are kept
+    sf = out / "SHA256SUMS.txt"
+    sums = {}
+    if sf.exists():
+        for ln in sf.read_text().splitlines():
+            if "  " in ln:
+                h, n = ln.split("  ", 1)
+                if (out / n).exists():
+                    sums[n] = h
+    sums[z.name] = sha256(z)
+    sf.write_text("".join(f"{h}  {n}\n" for n, h in sorted(sums.items())))
+    print(f"{sums[z.name]}  {z.name}")
 
 
 if __name__ == "__main__":

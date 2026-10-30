@@ -21,22 +21,106 @@ AICAD(AI-assisted CAD Modelling)는 설비·부품 도면(PDF, 이미지, DXF)�
 
 ## 2. 설치
 
-1. 배포 파일 `AICAD-0.1.0-offline-win64.zip`을 `C:\AICAD`처럼 짧은 경로에 푼다.
-   경로가 길면 Windows의 경로 길이 제한(260자)에 걸릴 수 있다.
-2. `1_INSTALL_OFFLINE.bat`을 실행한다. 관리자 권한과 인터넷은 필요하지 않다. 설치가 끝나면 자체 점검이
-   실행된다. `python\` 폴더를 지우면 설치 이전 상태로 돌아간다.
-3. 인터넷이 되는 PC에서 `3_GET_AI_MODEL.bat`을 실행하고 사용할 PC의 GPU에 맞는 모델을 고른다.
-   - 1번: RTX 4090 (24 GB) → Qwen3.6-27B Q4_K_M (약 17.7 GB)
-   - 2번: RTX 6000 Ada / A6000 Ada (48 GB) → Qwen3.6-27B Q6_K (약 23.5 GB)
-   - 3번: 위 두 가지 모두 (두 PC에서 모두 쓸 경우)
-   - 5번: 12-16 GB GPU 또는 CPU 전용 PC → Qwen3.6-35B-A3B IQ2_XXS (약 11.4 GB, 시험·보조용)
+AICAD는 Windows 10/11(64비트)에서 동작한다. 실제로 사용하는 PC에는 관리자 권한도 인터넷도 필요하지 않다.
+파일은 인터넷이 되는 PC에서 한 번 받아 USB나 공유 폴더로 옮긴다.
 
-   다운로드는 중단되어도 다시 실행하면 이어서 받으며, 모든 파일은 SHA-256으로 검증된다. 사내 프록시가 필요하면
-   환경 변수 `HTTPS_PROXY`를 설정한다. 받은 `models\` 폴더를 오프라인 PC의 AICAD 폴더에 복사한다.
-4. `2_RUN_AICAD.bat`으로 실행한다. 이 창을 닫으면 프로그램과 AI 엔진이 함께 종료된다.
+### 2.1 필요한 것
 
-NVIDIA 드라이버는 CUDA 12.4를 지원해야 한다(551.61 이상). 프로그램은 GPU 메모리를 확인하여 설치된 모델 중
-가장 적합한 것을 자동으로 고른다.
+| | RTX 4090 PC | RTX 6000 Ada / A6000 Ada PC | GPU 없는 PC (시험용) |
+|---|---|---|---|
+| 그래픽카드 | NVIDIA 24 GB | NVIDIA 48 GB | 필요 없음 |
+| NVIDIA 드라이버 | 551.61 이상 (CUDA 12.4) | 551.61 이상 (CUDA 12.4) | - |
+| 메모리(RAM) | 32 GB 이상 | 32 GB 이상 | 16 GB |
+| 디스크 여유 공간 | 25 GB | 30 GB | 8 GB |
+| AI 모델 | `qwen3.6-27b-q4` (17.7 GB) | `qwen3.6-27b-q6` (23.5 GB) | `qwen3.5-4b` (3.4 GB) |
+
+드라이버 버전은 명령 프롬프트에서 `nvidia-smi`를 실행하면 첫 줄의 "Driver Version"으로 확인할 수 있다.
+
+### 2.2 1단계 - 파일 받기 (인터넷 되는 PC)
+
+GitHub의 [최신 릴리스](https://github.com/HyoseokByun-opt/AICAD/releases/latest) 페이지 아래쪽 **Assets**에서 받는다.
+
+| 파일 | 필요 여부 | 내용 |
+|---|---|---|
+| `AICAD-0.1.0-offline-win64.zip` (약 1.1 GB) | 항상 | 프로그램, Python 3.11 런타임, 모든 패키지, llama.cpp 엔진 3종(CUDA·Vulkan·CPU), 예제, 문서 |
+| `AICAD-0.1.0-model-qwen3.6-27b-q4-partXXofYY.zip` 전부 | RTX 4090 | Qwen3.6-27B Q4_K_M (GitHub 파일당 2 GiB 제한 때문에 여러 조각) |
+| `AICAD-0.1.0-model-qwen3.6-27b-q6-partXXofYY.zip` 전부 | RTX 6000 Ada | Qwen3.6-27B Q6_K |
+| `AICAD-0.1.0-model-qwen3.5-4b-part01of02.zip`, `part02of02.zip` | GPU 없는 PC | Qwen3.5-4B Q4_K_M (시험용) |
+| `SHA256SUMS.txt` | 권장 | 모든 파일의 SHA-256 체크섬 |
+
+모델은 조각을 **하나도 빠짐없이** 받아야 한다(파일 이름의 `partXXofYY`에서 YY가 전체 조각 수). 한 조각이라도
+빠지면 모델이 시작되지 않는다. 두 PC에 모두 쓸 경우 두 모델을 다 받는다.
+
+받은 파일이 온전한지 확인하려면 PowerShell에서 `Get-FileHash -Algorithm SHA256 .\파일이름.zip`을 실행해
+`SHA256SUMS.txt`의 값과 비교한다. 아래 2.4의 방법 B를 쓰면 모델 조각은 자동으로 검사된다.
+
+### 2.3 2단계 - 프로그램 풀기 (사용할 PC)
+
+1. 받은 파일을 사용할 PC로 옮긴다.
+2. `C:\AICAD` 폴더를 만든다. 공백이나 한글이 없는 짧은 경로를 쓴다. OneDrive나 네트워크 폴더는 피한다
+   (Windows의 경로 길이 제한 260자 때문).
+3. `AICAD-0.1.0-offline-win64.zip`을 마우스 오른쪽 단추 → **압축 풀기...** → `C:\AICAD` 입력 → **압축 풀기**.
+
+그러면 프로그램 폴더 `C:\AICAD\AICAD-0.1.0\`이 생긴다. 이 안에 `1_INSTALL_OFFLINE.bat` 등 실행 파일과 `app\`,
+`engine\`, `models\`, `examples\` 등의 폴더가 있다.
+
+### 2.4 3단계 - AI 모델 넣기
+
+**방법 A - 직접 풀기.** 모델 조각을 **모두** 2단계와 **같은 폴더**(`C:\AICAD`, `AICAD-0.1.0` 안이 아님)에 푼다.
+각 조각 안에 이미 `AICAD-0.1.0\models\<모델 이름>\` 경로가 들어 있어서 모두 한곳에 모인다.
+
+```
+C:\AICAD\AICAD-0.1.0\models\qwen3.6-27b-q4    Qwen3.6-27B-Q4_K_M-00001-of-000YY.gguf
+    ...
+    mmproj-F16.gguf
+    LICENSE-qwen3.6-27b-q4.txt
+```
+
+모델은 `-0000N-of-000YY.gguf` 조각 그대로 두면 엔진이 하나의 모델로 읽는다. 이름을 바꾸지 않는다.
+
+**방법 B - 설치 도구로 검사하며 풀기.** 모든 조각과 `SHA256SUMS.txt`를 `C:\AICAD\AICAD-0.1.0\`
+(`3_GET_AI_MODEL.bat`이 있는 곳)에 복사하고 `3_GET_AI_MODEL.bat`을 실행해 **20**을 고른다. 각 조각을 체크섬으로
+검사한 뒤 풀며, 손상되거나 빠진 조각이 있으면 그 이름을 알려 준다. 끝나면 zip 파일은 지워도 된다.
+
+**방법 C - 사용할 PC에서 직접 내려받기 (인터넷 되는 경우).** `3_GET_AI_MODEL.bat`을 실행해 1(RTX 4090),
+2(RTX 6000 Ada), 3(둘 다), 8(이 PC의 GPU에 맞게 자동)을 고르면 Hugging Face에서, 11/12/13을 고르면 같은 모델을
+GitHub 릴리스에서 받는다. 중단되어도 다시 실행하면 이어서 받고 모든 파일을 검사한다. 사내 프록시가 있으면 같은
+명령 프롬프트에서 먼저 `set HTTPS_PROXY=http://프록시주소:포트`를 실행한다.
+
+### 2.5 4단계 - 설치
+
+`C:\AICAD\AICAD-0.1.0_INSTALL_OFFLINE.bat`을 더블클릭한다.
+
+1. Python 3.11.9 런타임을 `python\` 폴더에 푼다 (Windows에는 아무것도 설치하지 않는다).
+2. `wheels\`의 패키지를 인터넷 없이 설치한다.
+3. 자체 점검(CAD 커널, 가져오기, 내보내기, 해석 모델 등 약 20개 항목)을 실행한다.
+
+2~5분 걸리며 창 끝에 `... passed, 0 failed`가 나오고, 모델이 들어 있으면 `model ...` 줄에 표시된다.
+`python\` 폴더를 지우면 설치 전 상태로 돌아가고, `C:\AICAD`를 지우면 모두 지워진다.
+
+### 2.6 5단계 - 실행
+
+`2_RUN_AICAD.bat`을 더블클릭한다. 콘솔 창이 열리고(이 창을 닫으면 프로그램과 AI 엔진이 함께 종료된다) 브라우저에
+`http://127.0.0.1:8100`이 열린다.
+
+- AI 엔진은 첫 요청 때 또는 AI 탭의 **Start engine**으로 시작한다. 27B 모델을 GPU에 올리는 데 30초~2분쯤 걸리고,
+  제목 표시줄이 *AI engine ready*로 바뀌며 GPU 이름이 표시된다.
+- 시험: Home → **Examples** → *Base plate* → **Generate**. AI가 도면을 읽고 모델을 만들어 도면과 비교한 뒤,
+  Export 탭에서 STEP으로 내보낼 수 있다.
+- 사내 다른 PC에서도 쓰려면 `5_RUN_SERVER.bat`으로 실행하고, 다른 PC의 브라우저에서
+  `http://<이 PC 이름 또는 IP>:8100`을 연다. AI는 이 PC의 GPU에서 실행된다. 방화벽 허용을 묻으면 개인 네트워크에서
+  허용한다.
+
+### 2.7 6단계 - 확인 (선택)
+
+- `4_SELF_TEST.bat`: 자체 점검을 다시 실행. `4_SELF_TEST.bat --ai`는 모델을 올려 질문 하나를 해 본다.
+- Settings 탭 → *Installed AI models*: 찾은 모델과 완전한지(complete) 여부.
+- AI 탭: 엔진이 *CUDA*와 그래픽카드 이름을 보여야 한다. *CPU*로 나오면 GPU를 쓰지 못한 것이다(12절 참조).
+
+### 2.8 업데이트와 이동
+
+새 버전은 옛 버전 옆에 푼다(`C:\AICAD\AICAD-0.2.0\`). 옛 버전의 `models\` 폴더(공간을 아끼려면 이동)와,
+프로젝트를 유지하려면 `workspace\` 폴더를 새 버전으로 복사한 뒤 새 버전의 `1_INSTALL_OFFLINE.bat`을 실행한다.
 
 ## 3. 화면 구성
 

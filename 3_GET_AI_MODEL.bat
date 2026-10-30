@@ -1,13 +1,17 @@
 @echo off
 REM ===================================================================
-REM  Downloads an AI model from Hugging Face into models\ (internet needed).
+REM  Puts an AI model into models\: downloaded from Hugging Face or from
+REM  the GitHub release (internet needed), or unpacked from release parts
+REM  (AICAD-<version>-model-<profile>-partNNofMM.zip) downloaded by hand.
 REM
 REM  Run it on any PC with internet, then copy the whole AICAD folder (or
 REM  only models\) to the offline PC. Downloads resume after an
-REM  interruption and every file is checked against its SHA-256 digest.
+REM  interruption and every file or part is checked against its SHA-256.
 REM
-REM    3_GET_AI_MODEL.bat                 menu
-REM    3_GET_AI_MODEL.bat qwen3.6-27b-q4  one profile directly
+REM    3_GET_AI_MODEL.bat                            menu
+REM    3_GET_AI_MODEL.bat qwen3.6-27b-q4             one profile directly
+REM    3_GET_AI_MODEL.bat qwen3.6-27b-q4 --release   from the GitHub release
+REM    3_GET_AI_MODEL.bat --parts D:\download        unpack parts in a folder
 REM  Pure ASCII on purpose: cmd.exe reads .bat files in the ANSI code page.
 REM ===================================================================
 cd /d "%~dp0"
@@ -41,8 +45,15 @@ echo   6  8-16 GB GPU or CPU        Qwen3.5-9B Q4_K_M      6.6 GB
 echo   7  CPU trial                 Qwen3.5-4B Q4_K_M      3.4 GB
 echo   8  automatic for the GPU of THIS PC
 echo.
+echo   From the GitHub release instead of Hugging Face:
+echo   11 RTX 4090 model             (parts of the release)
+echo   12 RTX 6000 Ada model         (parts of the release)
+echo   13 CPU trial model            (parts of the release)
+echo   20 unpack release parts that are already in this folder
+echo      (AICAD-*-model-*-part*.zip next to this file; SHA256SUMS.txt checks them)
+echo.
 set "CH="
-set /p CH="  Choose 1-8: "
+set /p CH="  Choose 1-8, 11-13 or 20: "
 set "PROF="
 if "%CH%"=="1" set "PROF=qwen3.6-27b-q4"
 if "%CH%"=="2" set "PROF=qwen3.6-27b-q6"
@@ -52,6 +63,10 @@ if "%CH%"=="5" set "PROF=qwen3.6-35b-a3b-iq2"
 if "%CH%"=="6" set "PROF=qwen3.5-9b-q4"
 if "%CH%"=="7" set "PROF=qwen3.5-4b"
 if "%CH%"=="8" set "PROF=auto"
+if "%CH%"=="11" set "PROF=qwen3.6-27b-q4 --release"
+if "%CH%"=="12" set "PROF=qwen3.6-27b-q6 --release"
+if "%CH%"=="13" set "PROF=qwen3.5-4b --release"
+if "%CH%"=="20" set "PROF=--parts ."
 if not defined PROF goto :nochoice
 "%GPY%" "%~dp0tools\get_model.py" %PROF%
 pause
