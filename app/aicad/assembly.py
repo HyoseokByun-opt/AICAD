@@ -569,6 +569,7 @@ def build_component(job, p: Project, comp, code):
 
 
 ENVELOPE_FIX = 0.5      # a component further off its planned box than this (fraction of its size) is corrected once
+ENVELOPE_REJECT = 1.5   # ... and replaced by its planned box when it is still further off than this
 
 
 def envelope_check(comp, r):
@@ -610,6 +611,14 @@ def do_component(job, p: Project, plan, comp, readings, scales, extra, instructi
             code, r = new, r2
     st = {"ok": bool(r.get("ok")), "error": r.get("error"), "metrics": r.get("metrics"),
           "envelope_offset": envelope_check(comp, r), "attempts": k + 1}
+    if st["ok"] and st["envelope_offset"] is not None and st["envelope_offset"] > ENVELOPE_REJECT:
+        # still far outside its place (a 28 m manifold on a 4 m engine): it would distort the whole
+        # assembly; the planned box stands in, the script is kept for Redo
+        m = r["metrics"]
+        st.update(ok=False, built=True, error=f"built {st['envelope_offset'] * 100:.0f} % outside its planned box "
+                                               f"({m['size'][0]:.0f} x {m['size'][1]:.0f} x {m['size'][2]:.0f} mm)")
+        job.log(f"  {comp['id']} {comp['name']}: {st['error']}; a placeholder box is used (Redo to try again).", "error")
+        return code, st
     if st["ok"]:
         m = r["metrics"]
         job.log(f"  {comp['id']} {comp['name']}: {m['size'][0]:.0f} x {m['size'][1]:.0f} x {m['size'][2]:.0f} mm, "
