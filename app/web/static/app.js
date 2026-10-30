@@ -543,7 +543,7 @@
       for (const w of res.warnings || []) h += `<div class="note warn">${esc(w)}</div>`;
     }
     const pg = p.pages[p.page];
-    if (pg) h += sec("This page", "info", `<div class="kv"><div>File</div><div style="font-family:var(--font)">${esc(pg.source)} · page ${pg.page}</div><div>Image</div><div>${pg.w} × ${pg.h} px</div><div>Kind</div><div style="font-family:var(--font)">${pg.kind === "pdf-vector" ? "vector PDF" : pg.kind === "dxf" ? "DXF (exact geometry)" : "raster image"}</div><div>Text from file</div><div>${pg.texts.length} items</div>${pg.paper_mm ? `<div>Paper</div><div>${pg.paper_mm[0]} × ${pg.paper_mm[1]} mm</div>` : ""}</div>`);
+    if (pg) h += sec("This page", "info", `<div class="kv"><div>File</div><div style="font-family:var(--font)">${esc(pg.source)} · page ${pg.page}</div><div>Image</div><div>${pg.w} × ${pg.h} px</div><div>Kind</div><div style="font-family:var(--font)">${pg.kind === "pdf-vector" ? "vector PDF" : pg.kind === "pdf-scan" ? "scanned PDF (OCR text)" : pg.kind === "dxf" ? "DXF (exact geometry)" : "raster image"}</div><div>Text from file</div><div>${pg.texts.length} items</div>${pg.paper_mm ? `<div>Paper</div><div>${pg.paper_mm[0]} × ${pg.paper_mm[1]} mm</div>` : ""}</div>`);
     return h;
   }
 

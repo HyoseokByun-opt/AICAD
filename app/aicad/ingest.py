@@ -6,7 +6,7 @@ numbers of a drawing exported from a CAD system are then known to the last
 digit and need not be read from pixels.
 
     page = {"file": "page_001.png", "w": 2400, "h": 1697, "source": "pump.pdf",
-            "page": 1, "kind": "pdf-vector" | "raster" | "dxf",
+            "page": 1, "kind": "pdf-vector" | "pdf-scan" | "raster" | "dxf",
             "texts": [{"t": "120", "box": [x0, y0, x1, y1]}]}   # box: 0-1000
 
 DWG is a closed format; such files are refused with a request to save the
@@ -43,6 +43,21 @@ def ingest(src: Path, outdir: Path, stem: str) -> list[dict]:
 
 
 # ------------------------------------------------------------------ PDF
+def _is_scan(page, pw, ph) -> bool:
+    """A scanned sheet: one image covers most of the page. Text on such a page
+    is an OCR layer, not text written by the CAD program."""
+    try:
+        import pypdfium2.raw as pdfium_c
+        for obj in page.get_objects(max_depth=2):
+            if obj.type == pdfium_c.FPDF_PAGEOBJ_IMAGE:
+                l, b, r, t = obj.get_bounds() if hasattr(obj, "get_bounds") else obj.get_pos()
+                if (r - l) * (t - b) >= 0.5 * pw * ph:
+                    return True
+    except Exception:  # noqa: BLE001 - unknown structure: treat as drawn
+        return False
+    return False
+
+
 def _pdf(src, outdir, stem):
     import pypdfium2 as pdfium
     try:
@@ -70,8 +85,10 @@ def _pdf(src, outdir, stem):
                                               round(r / pw * 1000), round((ph - b) / ph * 1000)]})
         except Exception:
             pass
+        scan = _is_scan(page, pw, ph)
         pages.append({"file": name, "w": img.width, "h": img.height, "source": src.name, "page": i + 1,
-                      "kind": "pdf-vector" if texts else "raster", "texts": texts[:600],
+                      "kind": "pdf-scan" if scan else ("pdf-vector" if texts else "raster"), "texts": texts[:600],
+                      "ocr": bool(scan and texts),
                       "paper_mm": [round(pw * 25.4 / 72, 2), round(ph * 25.4 / 72, 2)],
                       "orig": {"file": src.name, "pdf_page": i, "pt": [pw, ph]}})
     if not pages:

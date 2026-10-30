@@ -73,7 +73,13 @@ def _texts_hint(page) -> str:
         if t.get("dim") is not None:
             lab = f"{lab} (dimension value {t['dim']:g})"
         rows.append(f"{lab} [{(b[0] + b[2]) // 2},{(b[1] + b[3]) // 2}]")
+    if rows and (page or {}).get("ocr"):
+        rows.insert(0, OCR_NOTE)
     return "\n".join(rows)
+
+
+OCR_NOTE = ("(This sheet is a scan; the text below is its OCR layer and may contain reading errors and broken "
+            "words. Where it disagrees with the image, the image is right.)")
 
 
 def ai_image(p: Project, page_path):

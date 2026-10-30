@@ -123,7 +123,8 @@ COMPONENT_SYSTEM = ("You are an expert CAD engineer who models plant structures,
 def survey_user(page_label: str, texts_hint: str) -> str:
     s = f"This is sheet '{page_label}' of the drawing set. Describe it as JSON."
     if texts_hint:
-        s += "\n\nText extracted exactly from the file (sheet coordinates in brackets):\n" + texts_hint
+        head = "Text found in the file" if texts_hint.startswith("(This sheet is a scan") else "Text extracted exactly from the file"
+        s += f"\n\n{head} (sheet coordinates in brackets):\n" + texts_hint
     return s
 
 

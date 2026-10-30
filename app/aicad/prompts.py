@@ -82,7 +82,9 @@ Rules:
 def read_user(texts_hint: str, extra: str) -> str:
     s = ("Read this drawing and return the JSON specification.")
     if texts_hint:
-        s += "\n\nText extracted exactly from the drawing file (sheet coordinates of each item in brackets):\n" + texts_hint
+        head = ("Text found in the drawing file" if texts_hint.startswith("(This sheet is a scan")
+                else "Text extracted exactly from the drawing file")
+        s += f"\n\n{head} (sheet coordinates of each item in brackets):\n" + texts_hint
     if extra:
         s += "\n\nAdditional information from the user (takes precedence over the drawing where they differ):\n" + extra
     return s
