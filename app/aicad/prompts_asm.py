@@ -89,6 +89,9 @@ Rules:
   of two u values is their height difference; in a plan, u runs along +Y. Keep the order of parts as drawn.
 - A view without a scale gives its size and positions in sheet pixels. Take the scale from a size stated in the
   request (mm per pixel = stated size / its length in pixels on the view) and convert every other size with it.
+  Views without a scale in one drawing set (patent, catalogue or textbook figures) are normally drawn at one common
+  scale: use the same mm per pixel for all of them unless the same part clearly has different sizes in two views,
+  and then scale each view so that the part has the same size in both.
 - A layout model shows envelopes and main features; internal details that do not change the outer shape are left out.
 """
 

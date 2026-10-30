@@ -281,6 +281,11 @@ def repair_user(code: str, err: dict) -> str:
         for m in err.get("lint", []):
             hints.append(m[0].upper() + m[1:] + ".")
     e = (err.get("error") or "") + (err.get("line_text") or "")
+    if "revolve" in (err.get("line_text") or "") and ("NotDone" in e or "not done" in e or "Standard_" in e):
+        hints.append("A revolve failed: the profile must lie on one side of the axis and must not cross it. Draw "
+                     "the half section with radii r >= 0 measured from the axis - lib.revolve([(r, z), ...], "
+                     "origin=(x, y, z), axis='z') does this - instead of a rectangle centred on the axis; a ring "
+                     "from r1 to r2 is the closed outline (r1, z0), (r2, z0), (r2, z1), (r1, z1).")
     if "fillet" in e or "chamfer" in e or "BRep_API: command not done" in e or "StdFail_NotDone" in e:
         hints.append("A fillet or chamfer (or a boolean) failed: reduce the radius below the adjacent wall "
                      "thickness, select fewer edges, or remove the cosmetic fillet.")
