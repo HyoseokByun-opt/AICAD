@@ -50,6 +50,7 @@ def main():
     out = ROOT / "release"
     out.mkdir(exist_ok=True)
     name = f"AICAD-{__version__}-offline-win64"
+    top = f"AICAD-{__version__}"          # the folder it unpacks to; the model parts unpack into the same folder
     z = out / f"{name}.zip"
     n = 0
     with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as zf:
@@ -57,7 +58,7 @@ def main():
             rel = p.relative_to(ROOT).as_posix()
             # already-compressed files are stored
             ct = zipfile.ZIP_STORED if p.suffix.lower() in (".whl", ".zip", ".png", ".jpg") else zipfile.ZIP_DEFLATED
-            zf.write(p, f"{name}/{rel}", compress_type=ct)
+            zf.write(p, f"{top}/{rel}", compress_type=ct)
             n += 1
     size = z.stat().st_size
     print(f"{z.name}: {n} files, {size / 1e9:.2f} GB")

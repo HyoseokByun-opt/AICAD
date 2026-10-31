@@ -347,10 +347,11 @@ Double-click `C:\AICAD\AICAD-0.1.0\1_INSTALL_OFFLINE.bat`. It
 
 1. unpacks the Python 3.11.9 runtime into `python\` (nothing is installed in Windows itself),
 2. installs the bundled packages from `wheels\` without internet,
-3. runs the self-test: about 20 checks of the CAD kernel, imports, exports and the analysis model.
+3. checks that every package can be imported and runs the short self-test (CAD kernel, code check, STEP round trip,
+   drawing import, lengths, the AI engines and the models found).
 
-This takes 2 to 5 minutes. The window ends with `... passed, 0 failed` and, when a model is in place, lists it under
-`model ...`. Deleting the `python\` folder undoes the installation; deleting `C:\AICAD` removes everything.
+This takes 2 to 5 minutes. The window ends with `5 passed, 0 failed` and, when a model is in place, lists it under
+`model ...` (for example `ok    model Qwen3.6-27B · Q4_K_M (16.8 GB)`). Press a key to close it. Deleting the `python\` folder undoes the installation; deleting `C:\AICAD` removes everything.
 
 ### Step 5 - Start
 
@@ -367,7 +368,8 @@ and the browser shows AICAD at `http://127.0.0.1:8100`.
 
 ### Step 6 - Check (optional)
 
-- `4_SELF_TEST.bat` repeats the self-test; `4_SELF_TEST.bat --ai` also loads the model and asks it one question.
+- `4_SELF_TEST.bat` runs the full self-test (20 checks, about a minute); `4_SELF_TEST.bat --ai` also loads the
+  model and asks it one question.
 - Settings tab → *Installed AI models* lists every model found and whether it is complete.
 - AI tab → the engine shows *CUDA* and the name of the graphics card. *CPU* means the GPU was not used (see
   troubleshooting).
