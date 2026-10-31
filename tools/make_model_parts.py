@@ -110,17 +110,20 @@ def main():
     ap.add_argument("--keep", action="store_true", help="keep the original model file")
     a = ap.parse_args()
     sums_file = ROOT / "release" / "SHA256SUMS.txt"
-    sums = {}
-    if sums_file.exists():
-        for ln in sums_file.read_text().splitlines():
-            if "  " in ln:
-                h, n = ln.split("  ", 1)
-                sums[n] = h
     for pid in a.profiles:
         print(f"{pid}:")
+        new = {}
         for z in pack(pid, a.keep):
-            sums[z.name] = sha256(z)
-            print(f"    {z.stat().st_size / 1e9:6.2f} GB  {sums[z.name]}")
+            new[z.name] = sha256(z)
+            print(f"    {z.stat().st_size / 1e9:6.2f} GB  {new[z.name]}")
+        # read the list again just before writing: make_release.py may have added to it meanwhile
+        sums = {}
+        if sums_file.exists():
+            for ln in sums_file.read_text().splitlines():
+                if "  " in ln:
+                    h, n = ln.split("  ", 1)
+                    sums[n] = h
+        sums.update(new)
         sums_file.write_text("".join(f"{h}  {n}\n" for n, h in sorted(sums.items())))
     print(f"written to {ROOT / 'release'}")
 
