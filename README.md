@@ -303,7 +303,10 @@ every model part automatically.)
 1. Copy the downloaded files to the working PC, for example into `C:\Users\<name>\Downloads\AICAD`.
 2. Create the folder `C:\AICAD`. Use a short path without spaces or non-English letters; avoid OneDrive and network
    folders (Windows limits paths to 260 characters, and the package has deep folders).
-3. Right-click `AICAD-0.1.0-offline-win64.zip` → **Extract All...** → enter `C:\AICAD` → **Extract**.
+3. *Recommended:* right-click `AICAD-0.1.0-offline-win64.zip` → **Properties** → tick **Unblock** at the bottom →
+   **OK**. Windows marks downloaded files; unblocked, the .bat files start without a security question.
+4. Right-click `AICAD-0.1.0-offline-win64.zip` → **Extract All...** → in the dialog, replace the suggested folder with
+   `C:\AICAD` → **Extract**. No separate compression program is needed; Windows' own zip support is enough.
 
 The result is the program folder `C:\AICAD\AICAD-0.1.0\`:
 
@@ -315,9 +318,18 @@ C:\AICAD\AICAD-0.1.0\
 
 ### Step 3 - Put the AI model in place
 
-**Option A - unzip the parts by hand.** Unzip *every* part of the model into the **same folder as in step 2**
-(`C:\AICAD`, not into `AICAD-0.1.0`): right-click a part → Extract All... → `C:\AICAD` → Extract; repeat for each
-part. Each part already contains the path `AICAD-0.1.0\models\<profile>\`, so all pieces land together:
+**Option A - unzip the parts by hand (Windows Explorer, no extra program).** Each part is an ordinary zip file of its
+own, not a split archive: it can be opened by Windows alone, in any order. Unzip *every* part of the model into the
+**same folder as in step 2** (`C:\AICAD`, not into `AICAD-0.1.0`):
+
+1. Right-click the first part, e.g. `AICAD-0.1.0-model-qwen3.6-27b-q4-part01of10.zip` → **Extract All...**
+2. Windows suggests a new folder named after the zip (`...\Downloads\AICAD-0.1.0-model-qwen3.6-27b-q4-part01of10`).
+   **Replace it with `C:\AICAD`** → **Extract**. With the suggested folder, every part would land somewhere else and
+   the model would be incomplete.
+3. Repeat for every part (10 for the Q4 model, 13 for the Q6 model; Explorer extracts one zip at a time, about
+   2-10 s each). If Windows asks whether to replace files, answer *Replace* - only the folders are shared.
+
+Each part already contains the path `AICAD-0.1.0\models\<profile>\`, so all pieces land together:
 
 ```
 C:\AICAD\AICAD-0.1.0\models\qwen3.6-27b-q4\
@@ -393,6 +405,8 @@ of the new version. The project folder can also be set in Settings → Workspace
 | Antivirus software blocks `llama-server.exe` | Allow `engine\cuda\llama-server.exe`; it is the unchanged llama.cpp server (MIT licence) and listens only on 127.0.0.1. |
 | The browser does not open | Open `http://127.0.0.1:8100` by hand. If port 8100 is taken, start `python\python.exe app\run_web.py --port 8101 --open` in the program folder. |
 | A model part is damaged | Its SHA-256 differs from `SHA256SUMS.txt`: download that part again (option B names it). |
+| The model parts ended up in folders such as `AICAD-0.1.0-model-...-part01of10\` | They were unzipped into the folder Windows suggests: move the `.gguf` files from each into `C:\AICAD\AICAD-0.1.0\models\<profile>\`, or unzip again to `C:\AICAD`, or use option B. |
+| "Windows protected your PC" when starting a .bat | The files came from the internet: click *More info* → *Run anyway*, or unblock the zip before unpacking (step 2). |
 
 ### From source (developers)
 
