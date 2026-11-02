@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AICAD — AI-assisted CAD modelling · engineering drawings to STEP and beam/shell models</title>
+<meta name="description" content="AICAD turns engineering drawings (single parts, machines, plant structures, multi-sheet drawing sets) or descriptions into parametric 3D solids and exports STEP and beam/shell analysis models, with a local vision-language model (Qwen3.6 on llama.cpp) and the OpenCASCADE kernel. Offline, open source, MIT.">
+<meta name="keywords" content="AICAD, AI CAD, drawing to CAD, engineering drawing, STEP, CadQuery, OpenCASCADE, vision-language model, Qwen3.6, llama.cpp, offline, plant structure, steel structure, turbine, assembly, beam model, shell model, finite element, CalculiX">
+<meta name="author" content="Hyoseok Byun">
+<link rel="canonical" href="https://hyoseokbyun-opt.github.io/AICAD/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AICAD">
+<meta property="og:title" content="AICAD — engineering drawings to 3D models">
+<meta property="og:description" content="Drawings and descriptions to parametric 3D solids (STEP) and beam/shell analysis models, with a local vision-language model and the OpenCASCADE kernel. Offline, MIT License.">
+<meta property="og:url" content="https://hyoseokbyun-opt.github.io/AICAD/">
+<meta property="og:image" content="https://hyoseokbyun-opt.github.io/AICAD/assets/social_preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "AICAD",
+  "alternateName": "AI-assisted CAD Modelling",
+  "description": "Engineering drawings (single parts, machines, plant structures, multi-sheet sets) or descriptions to parametric 3D solids (STEP) and beam/shell analysis models, with a local vision-language model and the OpenCASCADE kernel.",
+  "applicationCategory": "DesignApplication",
+  "operatingSystem": "Windows 10, Windows 11",
+  "softwareVersion": "0.1.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://hyoseokbyun-opt.github.io/AICAD/",
+  "downloadUrl": "https://github.com/HyoseokByun-opt/AICAD/releases/latest",
+  "codeRepository": "https://github.com/HyoseokByun-opt/AICAD",
+  "image": "https://hyoseokbyun-opt.github.io/AICAD/assets/social_preview.png",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "author": {"@type": "Person", "name": "Hyoseok Byun", "sameAs": ["https://github.com/HyoseokByun-opt"]}
+}
+</script>
+<style>
+  :root {
+    --bg: #ffffff; --bg2: #f6f8fa; --card: #ffffff; --ink: #1f2328; --ink2: #57606a; --line: #d0d7de;
+    --accent: #0b62c4; --accent2: #0a53a8; --chip: #ddf4ff; --chipink: #0a3069; --code: #f6f8fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1117; --bg2: #161b22; --card: #0d1117; --ink: #e6edf3; --ink2: #9198a1; --line: #30363d;
+            --accent: #4493f8; --accent2: #6aa8fa; --chip: #12263f; --chipink: #9ecbff; --code: #161b22; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.6;
+         font: 16px/1.6 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  header.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent);
+               backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  header.top .wrap { display: flex; align-items: center; gap: 18px; height: 60px; }
+  header.top img { height: 34px; display: block; }
+  nav { margin-left: auto; display: flex; gap: 18px; flex-wrap: wrap; font-size: 15px; }
+  nav a { color: var(--ink2); }
+  nav a.gh { color: var(--ink); font-weight: 600; }
+  .hero { padding: 56px 0 28px; text-align: center; }
+  .hero h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.15; margin: 0 0 14px; letter-spacing: -0.5px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p.lead { font-size: clamp(17px, 2.2vw, 20px); color: var(--ink2); max-width: 760px; margin: 0 auto 26px; }
+  .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 11px 20px; border-radius: 8px; font-weight: 600; border: 1px solid var(--line);
+         color: var(--ink); background: var(--bg2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:hover { text-decoration: none; filter: brightness(1.05); }
+  .meta { margin-top: 18px; color: var(--ink2); font-size: 14px; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  figure { margin: 0; }
+  .banner { margin: 18px auto 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+  .banner img, .shot img { width: 100%; height: auto; display: block; }
+  section { padding: 56px 0 8px; }
+  section h2 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.3px; }
+  section p.sub { color: var(--ink2); margin: 0 0 24px; max-width: 820px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .step, .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+  .step .n { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: var(--chip); color: var(--chipink);
+             font-weight: 700; text-align: center; line-height: 28px; margin-bottom: 8px; }
+  .step h3, .card h3 { margin: 0 0 6px; font-size: 18px; }
+  .step p, .card p { margin: 0; color: var(--ink2); font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink2); font-size: 15px; }
+  .card .tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--chipink); background: var(--chip);
+               border-radius: 999px; padding: 2px 10px; margin-bottom: 8px; }
+  .shot { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+  .flow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.43fr); gap: 18px; align-items: start; }
+  .flow .plots { background: #fff; margin: 0; }
+  .flow .anim { margin: 0; text-align: center; }
+  .flow .anim img { width: 100%; height: auto; display: block; border-radius: 12px; }
+  .flow .anim figcaption { color: var(--ink2); font-size: 13.5px; margin-top: 8px; }
+  @media (max-width: 860px) { .flow { grid-template-columns: 1fr; } }
+  .ex { margin-top: 38px; }
+  .ex h3 { font-size: 20px; margin: 0 0 6px; }
+  .ex > p { color: var(--ink2); max-width: 900px; margin: 0 0 14px; }
+  .ex .shot { margin: 14px 0 0; }
+  .ex .flow + .shot, .ex .flow + table { margin-top: 14px; }
+  table.kv { border-collapse: collapse; font-size: 14px; margin-top: 12px; min-width: 50%; }
+  table.kv th, table.kv td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); }
+  table.kv th { color: var(--ink2); font-weight: 600; }
+  .ex .note { color: var(--ink2); font-size: 13px; }
+  .sheet.wide { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 8px; }
+  @media (max-width: 1000px) { .sheet.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .sheet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .sheet .tile { background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--c); border-radius: 10px;
+                 padding: 10px 14px 12px; }
+  .sheet .lab { display: block; color: var(--c); font-weight: 600; font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase; }
+  .sheet .lab i { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .sheet b { display: block; font-size: 25px; line-height: 1.25; margin: 4px 0 6px; }
+  .sheet .l { display: block; color: var(--ink2); font-size: 13.5px; line-height: 1.5; }
+  @media (prefers-color-scheme: dark) { .sheet .lab { color: color-mix(in srgb, var(--c) 62%, #fff); } }
+  @media (max-width: 520px) { .sheet, .sheet.wide { grid-template-columns: 1fr; } table.kv { min-width: 0; font-size: 13px; } }
+  table.bench { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.bench th, table.bench td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.bench th { color: var(--ink2); font-weight: 600; }
+  table.bench .src { display: block; color: var(--ink2); font-size: 12.5px; margin-top: 2px; }
+  ol.refs { color: var(--ink2); font-size: 13px; line-height: 1.55; padding-left: 22px; margin: 14px 0 0; }
+  ol.refs li { margin: 3px 0; overflow-wrap: anywhere; }
+  @media (max-width: 700px) { table.bench { font-size: 12.5px; } }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 8px; }
+  .stat { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: var(--bg2); }
+  .stat b { display: block; font-size: 26px; color: var(--accent); line-height: 1.2; }
+  .stat span { color: var(--ink2); font-size: 14px; }
+  .presets { columns: 2; column-gap: 32px; padding-left: 18px; color: var(--ink2); }
+  .presets li { break-inside: avoid; margin-bottom: 4px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .two > *, .grid > *, .steps > *, .stats > * { min-width: 0; }
+  pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto;
+        font: 13.5px/1.5 Consolas, "SFMono-Regular", Menlo, monospace; margin: 10px 0 0; }
+  code { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 0.92em; background: var(--code);
+         border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  pre code { border: 0; padding: 0; background: none; }
+  .note { color: var(--ink2); font-size: 14px; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding: 26px 0 40px; color: var(--ink2); font-size: 14px; }
+  footer .wrap { display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; }
+  @media (max-width: 860px) {
+    .steps, .grid, .two { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .presets { columns: 1; }
+    nav { display: none; }
+  }
+
+  :root { --ai: #8250df; --aichip: #fbefff; --aiink: #6e40c9; }
+  @media (prefers-color-scheme: dark) { :root { --ai: #a371f7; --aichip: #271052; --aiink: #d2a8ff; } }
+  .hero h1 span { color: var(--ai); }
+  .steps.four { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 1000px) { .steps.four { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .steps.four { grid-template-columns: 1fr; } }
+  .card .tag.ai { color: var(--aiink); background: var(--aichip); }
+  .stat b { color: var(--ai); }
+  .shotframe { box-shadow: 0 8px 28px rgba(31, 35, 40, .12); }
+  table.ex-table td:first-child { font-size: 15px; }
+  table.ex-table td:last-child { color: var(--ink2); }
+  .pair { align-items: center; }
+  .pair .shot { background: #fff; }
+  .pair .shot img { max-height: 520px; object-fit: contain; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a href="#top" aria-label="AICAD home"><img src="assets/logo.png" alt="AICAD - AI-assisted CAD Modelling" height="34"></a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#edit">CAD editing</a>
+      <a href="#analysis">Analysis model</a>
+      <a href="#models">Models</a>
+      <a href="#install">Install</a>
+      <a href="#tests">Tests</a>
+      <a class="gh" href="https://github.com/HyoseokByun-opt/AICAD">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<div class="wrap">
+  <div class="hero">
+    <h1>AICAD <span>· drawings to 3D models</span></h1>
+    <p class="lead">AICAD turns engineering drawings - single parts, machines, plant structures and drawing sets of many
+      sheets - or a written description into parametric 3D solids, and exports them as STEP and as beam and shell
+      models for structural analysis. A vision-language model reads the drawing on the PC's own GPU, the OpenCASCADE
+      kernel builds the solid; nothing leaves the PC.</p>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/HyoseokByun-opt/AICAD/releases/latest">Download</a>
+      <a class="btn" href="https://github.com/HyoseokByun-opt/AICAD#installation">Installation</a>
+      <a class="btn" href="https://github.com/HyoseokByun-opt/AICAD/blob/main/docs/GUIDE_KO.md">Guide (Korean)</a>
+      <a class="btn" href="https://github.com/HyoseokByun-opt/AICAD">Source code</a>
+    </div>
+    <div class="meta"><b>Version 0.1.0</b> · Windows 10 / 11 · offline · MIT License ·
+      Qwen3.6 vision-language model on llama.cpp · CadQuery / OpenCASCADE</div>
+    <figure class="banner shotframe"><img src="assets/ui_turbine.png" width="1600" height="960"
+      alt="The AICAD workspace with the layout model of a 1925 turbine and generator unit, its components listed on the right"></figure>
+  </div>
+</div>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How a drawing becomes a model</h2>
+    <p class="sub">The AI reads and writes; the program measures and checks. Every size used for the model is listed with
+      its source - written on the drawing, measured by ratio on the sheet, stated by the user, or assumed.</p>
+    <div class="steps four">
+      <div class="step"><span class="n">1</span><h3>Read</h3>
+        <p>PDF (vector or scanned), PNG, JPEG, TIFF up to 280 megapixels, DXF. Views, dimensions, labels and scale notes
+          are read; large views zoomed from the original in tiles; feet-inches and metric.</p></div>
+      <div class="step"><span class="n">2</span><h3>Measure</h3>
+        <p>View boxes snapped to the linework, graphic scale bars measured by image analysis (feet and metre bars must
+          agree), missing sizes measured by ratio, labels placed in millimetres.</p></div>
+      <div class="step"><span class="n">3</span><h3>Model</h3>
+        <p>A CadQuery script with a parameter block per part or component, built on the OpenCASCADE kernel, corrected on
+          errors, checked against its planned place and against hidden-line views of the drawing.</p></div>
+      <div class="step"><span class="n">4</span><h3>Export</h3>
+        <p>STEP (AP214 / AP203 / AP242) assemblies with named, coloured parts; STL, glTF, BREP, a 2D DXF drawing, and a
+          beam and shell analysis model.</p></div>
+    </div>
+    <div class="grid" style="margin-top:16px">
+      <div class="card"><span class="tag">Drawing sets</span><h3>Machines and plants</h3>
+        <p>Several sheets are surveyed, every view read, the object planned as components in one coordinate system -
+          legend entries placed at their callouts - and every component modelled and corrected on its own.</p></div>
+      <div class="card"><span class="tag">Library</span><h3>Building blocks for large structures</h3>
+        <p>Steel members and frames from node lists (HEB, IPE, UPN, W shapes, pipes, hollow sections), stairs, ladders,
+          grating, pipes, flanges, vessels, spiral casings, transitions, blade rows.</p></div>
+      <div class="card"><span class="tag">Offline</span><h3>One package, no internet</h3>
+        <p>Python runtime, all packages and the llama.cpp engines (CUDA, Vulkan, CPU) in one zip; the AI model is copied
+          once. No administrator rights, no drawing leaves the PC.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="gallery">
+  <div class="wrap">
+    <h2>From drawing to model</h2>
+    <p class="sub">Real drawings in the public domain - Historic American Engineering Record sheets and US patents - and
+      the models made from them.</p>
+    <div class="two pair">
+      <figure class="shot"><img src="assets/dwg_turbine.jpg" width="900" height="695" alt="1925 drawing of the turbine and generator unit of Wilson Dam, a half section without dimensions"></figure>
+      <figure class="shot"><img src="assets/ref_turbine_unit.png" width="900" height="643" alt="Layout model of the turbine and generator unit with generator, exciter, shaft, runner, spiral casing, draft tube and concrete"></figure>
+    </div>
+    <p class="note">Turbine and generator unit, 1925: a half section without a single dimension; sizes from the measured
+      scale bars. Layout model with the modelling library: 9 components, 112 solids.</p>
+    <div class="two pair" style="margin-top:22px">
+      <figure class="shot"><img src="assets/dwg_truss.jpg" width="900" height="728" alt="Photograph of a 1934 erection plan of a steel deck truss"></figure>
+      <figure class="shot"><img src="assets/anl_steel_truss.png" width="900" height="643" alt="Steel deck truss with its beam model: centre lines coloured by section and joined nodes"></figure>
+    </div>
+    <p class="note">Steel deck truss, 1934: a photographed erection plan in feet and inches; 131 members, shown with the
+      beam model derived from them (131 beams, 36 member ends joined).</p>
+    <div class="two pair" style="margin-top:22px">
+      <figure class="shot"><img src="assets/dwg_v_engine.jpg" width="613" height="900" alt="Patent sheet 1 of 5 of an inverted V-16 aircraft engine"></figure>
+      <figure class="shot"><img src="assets/ai_v_engine.png" width="900" height="643" alt="Assembly modelled by the AI from five engine sheets"></figure>
+    </div>
+    <p class="note">Inverted V-16 engine, five sheets (US patent 2,468,976), modelled by the AI from all five sheets:
+      11 of 11 components. Made with the compact test model on a laptop CPU; some components came out at the wrong size
+      or orientation - see <a href="#tests">Tests</a>.</p>
+    <div class="two pair" style="margin-top:22px">
+      <figure class="shot"><img src="assets/dwg_transmission.jpg" width="613" height="900" alt="Patent sheet of an automatic transmission in vertical section"></figure>
+      <figure class="shot"><img src="assets/ai_transmission.png" width="900" height="643" alt="Assembly of the transmission modelled by the AI"></figure>
+    </div>
+    <p class="note">Automatic transmission, three sheets (US patent 2,193,304), modelled by the AI: 10 of 10 components
+      including a planetary gear set of 39 solids (compact test model, the case lies flat).</p>
+    <div class="two pair" style="margin-top:22px">
+      <figure class="shot"><img src="assets/dwg_pump_skid.jpg" width="722" height="900" alt="DXF drawing of a pump skid"></figure>
+      <figure class="shot"><img src="assets/ref_pump_skid.png" width="900" height="643" alt="Pump skid assembly with base frame, motor, coupling and pump"></figure>
+    </div>
+    <p class="note">Pump skid from DXF: the dimension entities give the exact scale; five-part assembly.</p>
+  </div>
+</section>
+
+<section id="edit">
+  <div class="wrap">
+    <h2>CAD editing</h2>
+    <p class="sub">The generated model is finished by hand with a command line and clicks in the 3D view. Every command
+      becomes a parametric feature in a history - edited, suppressed, deleted, undone - and the model is rebuilt without
+      the AI in about a second.</p>
+    <figure class="shot shotframe"><img src="assets/ui_cad.png" width="1600" height="900" alt="Command line under the 3D view and the feature history on the right"></figure>
+    <table class="bench" style="margin-top:16px">
+      <tr><th>Command</th><th>Picks</th><th>Values</th></tr>
+      <tr><td><code>hole</code></td><td>face</td><td>diameter, depth; counterbore, count and pitch</td></tr>
+      <tr><td><code>pocket</code>, <code>pad</code></td><td>face</td><td>rectangle, circle or slot; size; depth or height</td></tr>
+      <tr><td><code>fillet</code>, <code>chamfer</code></td><td>edges</td><td>radius or size</td></tr>
+      <tr><td><code>shell</code></td><td>face to open</td><td>wall thickness</td></tr>
+      <tr><td><code>box</code>, <code>cylinder</code></td><td>face it stands on</td><td>sizes; add, cut or new body</td></tr>
+      <tr><td><code>move</code>, <code>rotate</code>, <code>mirror</code>, <code>array</code>, <code>delete</code></td><td>body or component</td><td>displacement, axis and angle, plane, copies and step</td></tr>
+    </table>
+    <p class="note" style="margin-top:10px">Enter takes the default, <code>key=value</code> gives several values at once,
+      Tab completes a command, Esc cancels, Ctrl+Z / Ctrl+Y undo and redo.</p>
+  </div>
+</section>
+
+<section id="analysis">
+  <div class="wrap">
+    <h2>Analysis model: beams and shells</h2>
+    <p class="sub">Structures of pipes and rolled sections, frames, platforms and vessels are analysed with beam and shell
+      elements. AICAD derives that model from the solids, the way an analyst idealises a structure by hand.</p>
+    <div class="flow">
+      <div>
+        <div class="card"><h3>What becomes what</h3>
+          <ul>
+            <li>straight members and pipe runs → beams on the centre line; rod, pipe, rectangle, box and I sections
+              recognised, area, second moments and torsion constant for any section</li>
+            <li>thin walls (plates, vessel shells, dished heads, ducts) → shells on the mid-surface with the measured
+              thickness</li>
+            <li>member ends joined to the members they meet; beam ends on a mid-surface share the shell's nodes</li>
+            <li>everything else stays a solid</li>
+          </ul></div>
+        <div class="card" style="margin-top:14px"><h3>Output</h3>
+          <p>STEP with centre lines, mid-surfaces and remaining solids; an input deck in the CalculiX keyword format (B31
+            beams, S3 shells, sections, steel); a section table with length, area, moments, thickness and mass.</p></div>
+      </div>
+      <figure class="anim"><img src="assets/anl_tubular_tower.png" width="900" height="643" alt="Pipe tower with a deck and a tank: pipe beams coloured by section, deck and tank as orange shells">
+        <figcaption>A tower of pipes from a description: 48 pipe beams; the deck and the tank (shell and heads) as shells
+          sharing nodes with the leg tops.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="models">
+  <div class="wrap">
+    <h2>AI models</h2>
+    <p class="sub">Open-weight vision-language models by the Qwen team (Apache-2.0) in GGUF form, run by llama.cpp with
+      CUDA 12.4. The model is chosen from the graphics memory of the PC.</p>
+    <table class="bench">
+      <tr><th>Graphics card</th><th>Model</th><th>Size</th><th>On the release</th></tr>
+      <tr><td>48 GB (RTX 6000 Ada / A6000 Ada)</td><td>Qwen3.6-27B, Q6_K</td><td>23.5 GB</td><td>13 parts</td></tr>
+      <tr><td>24 GB (RTX 4090)</td><td>Qwen3.6-27B, Q4_K_M</td><td>17.7 GB</td><td>10 parts</td></tr>
+      <tr><td>none (trial)</td><td>Qwen3.5-4B, Q4_K_M</td><td>3.4 GB</td><td>2 parts</td></tr>
+      <tr><td>other</td><td>Qwen3.6-35B-A3B (Q4_K_M, IQ2_XXS), Qwen3.5-9B</td><td>6.6 - 23 GB</td><td>from Hugging Face</td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install</h2>
+    <p class="sub">Download once on any PC with internet, copy to the working PC. No compression program and no
+      administrator rights are needed.</p>
+    <div class="steps four">
+      <div class="step"><span class="n">1</span><h3>Download</h3>
+        <p>From the <a href="https://github.com/HyoseokByun-opt/AICAD/releases/latest">release</a>: the offline package,
+          every part of the model for your graphics card, and SHA256SUMS.txt.</p></div>
+      <div class="step"><span class="n">2</span><h3>Unpack</h3>
+        <p>Extract the offline package to <code>C:\AICAD</code>, then every model part to the same folder - or put the
+          parts next to <code>3_GET_AI_MODEL.bat</code> and choose 20, which checks and unpacks them.</p></div>
+      <div class="step"><span class="n">3</span><h3>Install</h3>
+        <p>Run <code>1_INSTALL_OFFLINE.bat</code>: the Python runtime and packages are unpacked and a self-test runs.</p></div>
+      <div class="step"><span class="n">4</span><h3>Start</h3>
+        <p>Run <code>2_RUN_AICAD.bat</code>: AICAD opens in the browser at <code>http://127.0.0.1:8100</code>.</p></div>
+    </div>
+    <p class="note" style="margin-top:12px">The complete installation, step by step with troubleshooting:
+      <a href="https://github.com/HyoseokByun-opt/AICAD#installation">README</a> ·
+      <a href="https://github.com/HyoseokByun-opt/AICAD/blob/main/docs/GUIDE_KO.md">Korean guide</a>.</p>
+  </div>
+</section>
+
+<section id="tests">
+  <div class="wrap">
+    <h2>Tests</h2>
+    <p class="sub">A self-test of 20 checks (kernel, library, CAD features, analysis model, import and export) passes.
+      The complete AI pipeline was also run on real drawing sets with the compact test model (Qwen3.6-35B-A3B, 2-bit,
+      on a laptop CPU without a GPU) - a deliberately weak setting.</p>
+    <table class="bench">
+      <tr><th>Drawing set</th><th>Read</th><th>Modelled</th><th>Time (CPU)</th></tr>
+      <tr><td>Turbine and generator unit, 1 sheet</td><td>2 views, both scale bars, 69 labels; 12 components in the drawn order</td><td>9 of 12</td><td>2 h 20 min</td></tr>
+      <tr><td>Inverted V-16 engine, 5 sheets</td><td>11 views on 5 sheets; 11 components</td><td>11 of 11</td><td>2 h 25 min</td></tr>
+      <tr><td>Automatic transmission, 3 sheets</td><td>8 views on 3 sheets; 10 components</td><td>10 of 10</td><td>2 h</td></tr>
+    </table>
+    <p class="note" style="margin-top:10px">The drawing sets were read reliably and every run ended in a STEP assembly;
+      the small model got several components wrong in size or orientation. The intended Qwen3.6-27B on a 24 or 48 GB
+      GPU has not yet been measured on these sets.</p>
+  </div>
+</section>
+
+<section id="related">
+  <div class="wrap">
+    <h2>Related projects</h2>
+    <div class="two">
+      <div class="card"><span class="tag">Simulation</span><h3><a href="https://hyoseokbyun-opt.github.io/MPSim/">MPSim</a></h3>
+        <p>Material Property Simulation: thermal, electrical, dielectric, mechanical, rheological and moisture properties
+          of semiconductor materials from their 3D microstructure.</p></div>
+      <div class="card"><span class="tag">Simulation · AI</span><h3><a href="https://hyoseokbyun-opt.github.io/AIMPSim/">AIMPSim</a></h3>
+        <p>MPSim with requests in words: a local language model reads the request, rules check it against the sentence,
+          MPSim runs it.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>AICAD · AI-assisted CAD Modelling · Hyoseok Byun · MIT License</span>
+    <span>Qwen3.6 / Qwen3.5 (Apache-2.0) · llama.cpp (MIT) · CadQuery · OpenCASCADE · three.js</span>
+  </div>
+</footer>
+</body>
+</html>
