@@ -30,7 +30,8 @@
   <a href="#installation">Installation</a> ·
   <a href="#usage">Usage</a> ·
   <a href="#verification">Verification</a> ·
-  <a href="docs/GUIDE_KO.md">User guide (Korean)</a>
+  <a href="docs/GUIDE_KO.md">User guide (Korean)</a> ·
+  <a href="https://hyoseokbyun-opt.github.io/AICAD/">Project page</a>
 </p>
 
 <p align="center">
@@ -541,6 +542,14 @@ tools/          get_model · make_model_parts · build_offline · make_release �
 Each component keeps its own licence (see `LICENSE`). The example drawings are in the public domain: the Historic
 American Engineering Record (Library of Congress, via Wikimedia Commons), US patents published without a copyright
 notice, and a 1904 book illustration; the source is noted next to each in `examples/`.
+
+## Related projects
+
+- [MPSim](https://github.com/HyoseokByun-opt/MPSim) ([project page](https://hyoseokbyun-opt.github.io/MPSim/)) -
+  Material Property Simulation: thermal, electrical, dielectric, mechanical, rheological and moisture properties of
+  semiconductor materials from their 3D microstructure.
+- [AIMPSim](https://github.com/HyoseokByun-opt/AIMPSim) ([project page](https://hyoseokbyun-opt.github.io/AIMPSim/)) -
+  MPSim with requests in words: a local language model reads the request, rules check it, MPSim runs it.
 
 ## Authors and licence
 
